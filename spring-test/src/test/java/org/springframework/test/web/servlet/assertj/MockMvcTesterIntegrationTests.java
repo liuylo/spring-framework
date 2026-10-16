@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -96,7 +96,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
  * @author Stephane Nicoll
  */
 @SpringJUnitWebConfig
-public class MockMvcTesterIntegrationTests {
+class MockMvcTesterIntegrationTests {
 
 	private static final MockMultipartFile file = new MockMultipartFile("file", "content.txt", null,
 			"value".getBytes(StandardCharsets.UTF_8));
@@ -442,12 +442,12 @@ public class MockMvcTesterIntegrationTests {
 		private final ByteArrayOutputStream capturedOut = new ByteArrayOutputStream();
 
 		@BeforeEach
-		public void setUp() {
+		void setUp() {
 			System.setOut(new PrintStream(capturedOut));
 		}
 
 		@AfterEach
-		public void tearDown() {
+		void tearDown() {
 			System.setOut(standardOut);
 		}
 

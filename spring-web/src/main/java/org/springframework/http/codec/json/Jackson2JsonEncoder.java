@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,7 +44,10 @@ import org.springframework.util.MimeType;
  * @author Arjen Poutsma
  * @since 5.0
  * @see Jackson2JsonDecoder
+ * @deprecated since 7.0 in favor of {@link JacksonJsonEncoder}
  */
+@Deprecated(since = "7.0", forRemoval = true)
+@SuppressWarnings("removal")
 public class Jackson2JsonEncoder extends AbstractJackson2Encoder {
 
 	private static final List<MimeType> problemDetailMimeTypes =
@@ -60,13 +63,13 @@ public class Jackson2JsonEncoder extends AbstractJackson2Encoder {
 
 	public Jackson2JsonEncoder(ObjectMapper mapper, MimeType... mimeTypes) {
 		super(mapper, mimeTypes);
-		setStreamingMediaTypes(Arrays.asList(MediaType.APPLICATION_NDJSON));
+		setStreamingMediaTypes(Arrays.asList(MediaType.APPLICATION_NDJSON, MediaType.APPLICATION_JSONL));
 		this.ssePrettyPrinter = initSsePrettyPrinter();
 	}
 
 	private static PrettyPrinter initSsePrettyPrinter() {
 		DefaultPrettyPrinter printer = new DefaultPrettyPrinter();
-		printer.indentObjectsWith(new DefaultIndenter("  ", "\ndata:"));
+		printer.indentObjectsWith(new DefaultIndenter("  ", "\ndata: "));
 		return printer;
 	}
 

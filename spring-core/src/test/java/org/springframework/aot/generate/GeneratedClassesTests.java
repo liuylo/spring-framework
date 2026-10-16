@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,12 +42,12 @@ class GeneratedClassesTests {
 	private static final Consumer<TypeSpec.Builder> emptyTypeCustomizer = type -> {};
 
 	private final GeneratedClasses generatedClasses = new GeneratedClasses(
-			new ClassNameGenerator(ClassName.get("com.example", "Test")));
+			new NameGenerator(ClassName.get("com.example", "Test")));
 
 	@Test
-	void createWhenClassNameGeneratorIsNullThrowsException() {
+	void createWhenNameGeneratorIsNullThrowsException() {
 		assertThatIllegalArgumentException().isThrownBy(() -> new GeneratedClasses(null))
-				.withMessage("'classNameGenerator' must not be null");
+				.withMessage("'nameGenerator' must not be null");
 	}
 
 	@Test

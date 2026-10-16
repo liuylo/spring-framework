@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,8 +41,8 @@ import org.springframework.util.Assert;
  * @since 15.03.2004
  * @see #setEncoding
  * @see #setForceEncoding
- * @see jakarta.servlet.http.HttpServletRequest#setCharacterEncoding
- * @see jakarta.servlet.http.HttpServletResponse#setCharacterEncoding
+ * @see jakarta.servlet.http.HttpServletRequest#setCharacterEncoding(String)
+ * @see jakarta.servlet.http.HttpServletResponse#setCharacterEncoding(String)
  */
 public class CharacterEncodingFilter extends OncePerRequestFilter {
 

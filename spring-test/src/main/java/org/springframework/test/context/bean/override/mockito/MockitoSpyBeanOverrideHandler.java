@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package org.springframework.test.context.bean.override.mockito;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Parameter;
 import java.lang.reflect.Proxy;
 
 import org.jspecify.annotations.Nullable;
@@ -48,15 +49,19 @@ class MockitoSpyBeanOverrideHandler extends AbstractMockitoBeanOverrideHandler {
 			new SpringAopBypassingVerificationStartedListener();
 
 
-	MockitoSpyBeanOverrideHandler(Field field, ResolvableType typeToSpy, MockitoSpyBean spyAnnotation) {
-		this(field, typeToSpy, (StringUtils.hasText(spyAnnotation.name()) ? spyAnnotation.name() : null),
-				spyAnnotation.reset());
+	MockitoSpyBeanOverrideHandler(ResolvableType typeToSpy, MockitoSpyBean spyBean) {
+		this((Field) null, typeToSpy, spyBean);
 	}
 
-	MockitoSpyBeanOverrideHandler(Field field, ResolvableType typeToSpy, @Nullable String beanName,
-			MockReset reset) {
+	MockitoSpyBeanOverrideHandler(@Nullable Field field, ResolvableType typeToSpy, MockitoSpyBean spyBean) {
+		super(field, typeToSpy, (StringUtils.hasText(spyBean.name()) ? spyBean.name() : null),
+				spyBean.contextName(), BeanOverrideStrategy.WRAP, spyBean.reset());
+		Assert.notNull(typeToSpy, "typeToSpy must not be null");
+	}
 
-		super(field, typeToSpy, beanName, BeanOverrideStrategy.WRAP, reset);
+	MockitoSpyBeanOverrideHandler(Parameter parameter, ResolvableType typeToSpy, MockitoSpyBean spyBean) {
+		super(parameter, typeToSpy, (StringUtils.hasText(spyBean.name()) ? spyBean.name() : null),
+				spyBean.contextName(), BeanOverrideStrategy.WRAP, spyBean.reset());
 		Assert.notNull(typeToSpy, "typeToSpy must not be null");
 	}
 
@@ -71,9 +76,11 @@ class MockitoSpyBeanOverrideHandler extends AbstractMockitoBeanOverrideHandler {
 	}
 
 	private Object createSpy(String name, Object instance) {
+		SpringMockResolver.rejectUnsupportedSpyTarget(name, instance);
 		Class<?> resolvedTypeToOverride = getBeanType().resolve();
 		Assert.notNull(resolvedTypeToOverride, "Failed to resolve type to override");
 		Assert.isInstanceOf(resolvedTypeToOverride, instance);
+
 		if (Mockito.mockingDetails(instance).isSpy()) {
 			return instance;
 		}
@@ -82,7 +89,7 @@ class MockitoSpyBeanOverrideHandler extends AbstractMockitoBeanOverrideHandler {
 		if (StringUtils.hasLength(name)) {
 			settings.name(name);
 		}
-		if (SpringMockResolver.springAopPresent) {
+		if (SpringMockResolver.SPRING_AOP_PRESENT) {
 			settings.verificationStartedListeners(verificationStartedListener);
 		}
 

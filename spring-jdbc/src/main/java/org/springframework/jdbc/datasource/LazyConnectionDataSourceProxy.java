@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,9 +21,10 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.sql.Connection;
-import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 import javax.sql.DataSource;
 
@@ -36,12 +37,36 @@ import org.springframework.util.Assert;
 /**
  * Proxy for a target DataSource, fetching actual JDBC Connections lazily,
  * i.e. not until first creation of a Statement. Connection initialization
- * properties like auto-commit mode, transaction isolation and read-only mode
- * will be kept and applied to the actual JDBC Connection as soon as an actual
- * Connection is fetched (if ever). Consequently, commit and rollback calls will
- * be ignored if no Statements have been created. As of 6.1.2, there is also
- * special support for a {@link #setReadOnlyDataSource read-only DataSource} to use
- * during a read-only transaction, in addition to the regular target DataSource.
+ * properties like auto-commit mode, transaction isolation, read-only mode,
+ * catalog, schema, holdability, client info, and network timeout will be kept
+ * and applied to the actual JDBC Connection as soon as an actual Connection
+ * is fetched (if ever). Consequently, commit and rollback calls will be ignored
+ * if no Statements have been created.
+ *
+ * <p>Once a property has been set, the corresponding getter method returns the
+ * set value until the actual Connection is fetched. If the property has not been
+ * set, invoking the getter triggers a fetch of the actual connection in order to
+ * obtain the default value.
+ *
+ * <p>Although client info is listed among the deferred properties above,
+ * the following methods are exceptions to the lazy acquisition behavior and
+ * force immediate acquisition of the underlying Connection.
+ * The {@link java.sql.Connection#getClientInfo()} and
+ * {@link java.sql.Connection#getClientInfo(java.lang.String)}
+ * methods are read operations whose values cannot be reliably cached due to
+ * driver defaults, remnants from pooled connections, or external session
+ * modifications.
+ *
+ * <p>The {@link java.sql.Connection#setClientInfo(java.util.Properties)}
+ * method also forces immediate acquisition. JDBC driver implementations are
+ * inconsistent: some treat it as an overwrite, while others treat it as an
+ * append/merge. To guarantee behavior identical to that of a non-lazy DataSource
+ * across all drivers, the proxy does not cache or replay it, thereby avoiding any
+ * risk of semantic mismatch.
+ *
+ * <p>As of 6.1.2, there is also special support for a
+ * {@link #setReadOnlyDataSource read-only DataSource} to use during a
+ * read-only transaction, in addition to the regular target DataSource.
  *
  * <p>This DataSource proxy allows to avoid fetching JDBC Connections from
  * a pool unless actually necessary. JDBC transaction control can happen
@@ -77,6 +102,9 @@ import org.springframework.util.Assert;
  * You will get the same effect with non-transactional reads, but lazy fetching
  * of JDBC Connections allows you to still perform reads in transactions.
  *
+ * <p>As of 6.2.6, this DataSource proxy also suppresses a rollback attempt
+ * in case of a timeout where the connection has been closed in the meantime.
+ *
  * <p><b>NOTE:</b> This DataSource proxy needs to return wrapped Connections
  * (which implement the {@link ConnectionProxy} interface) in order to handle
  * lazy fetching of an actual JDBC Connection. Use {@link Connection#unwrap}
@@ -84,6 +112,7 @@ import org.springframework.util.Assert;
  *
  * @author Juergen Hoeller
  * @author Sam Brannen
+ * @author Chengang Guan
  * @since 1.1.4
  * @see DataSourceTransactionManager
  * @see #setTargetDataSource
@@ -147,6 +176,9 @@ public class LazyConnectionDataSourceProxy extends DelegatingDataSource {
 	 */
 	public void setReadOnlyDataSource(@Nullable DataSource readOnlyDataSource) {
 		this.readOnlyDataSource = readOnlyDataSource;
+		if (getTargetDataSource() == null) {
+			setTargetDataSource(readOnlyDataSource);
+		}
 	}
 
 	/**
@@ -294,13 +326,23 @@ public class LazyConnectionDataSourceProxy extends DelegatingDataSource {
 
 		private @Nullable String password;
 
-		private @Nullable Boolean autoCommit;
+		private @Nullable String catalog;
 
-		private @Nullable Integer transactionIsolation;
+		private @Nullable String schema;
+
+		private @Nullable Integer holdability;
 
 		private boolean readOnly = false;
 
-		private int holdability = ResultSet.CLOSE_CURSORS_AT_COMMIT;
+		private @Nullable Integer transactionIsolation;
+
+		private @Nullable Boolean autoCommit;
+
+		private @Nullable Executor networkTimeoutExecutor;
+
+		private @Nullable Integer networkTimeout;
+
+		private @Nullable Map<String, String> clientInfo;
 
 		private boolean closed = false;
 
@@ -358,15 +400,41 @@ public class LazyConnectionDataSourceProxy extends DelegatingDataSource {
 					case "toString" -> {
 						return "Lazy Connection proxy for target DataSource [" + getTargetDataSource() + "]";
 					}
-					case "getAutoCommit" -> {
-						if (this.autoCommit != null) {
-							return this.autoCommit;
+					case "getCatalog" -> {
+						if (this.catalog != null) {
+							return this.catalog;
 						}
-						// Else fetch actual Connection and check there,
-						// because we didn't have a default specified.
+						// Else fetch actual Connection and check there.
 					}
-					case "setAutoCommit" -> {
-						this.autoCommit = (Boolean) args[0];
+					case "setCatalog" -> {
+						this.catalog = (String) args[0];
+						return null;
+					}
+					case "getSchema" -> {
+						if (this.schema != null) {
+							return this.schema;
+						}
+						// Else fetch actual Connection and check there.
+					}
+					case "setSchema" -> {
+						this.schema = (String) args[0];
+						return null;
+					}
+					case "getHoldability" -> {
+						if (this.holdability != null) {
+							return this.holdability;
+						}
+						// Else fetch actual Connection and check there.
+					}
+					case "setHoldability" -> {
+						this.holdability = (Integer) args[0];
+						return null;
+					}
+					case "isReadOnly" -> {
+						return (this.readOnly || getTargetDataSource() == readOnlyDataSource);
+					}
+					case "setReadOnly" -> {
+						this.readOnly = (Boolean) args[0];
 						return null;
 					}
 					case "getTransactionIsolation" -> {
@@ -380,18 +448,15 @@ public class LazyConnectionDataSourceProxy extends DelegatingDataSource {
 						this.transactionIsolation = (Integer) args[0];
 						return null;
 					}
-					case "isReadOnly" -> {
-						return this.readOnly;
+					case "getAutoCommit" -> {
+						if (this.autoCommit != null) {
+							return this.autoCommit;
+						}
+						// Else fetch actual Connection and check there,
+						// because we didn't have a default specified.
 					}
-					case "setReadOnly" -> {
-						this.readOnly = (Boolean) args[0];
-						return null;
-					}
-					case "getHoldability" -> {
-						return this.holdability;
-					}
-					case "setHoldability" -> {
-						this.holdability = (Integer) args[0];
+					case "setAutoCommit" -> {
+						this.autoCommit = (Boolean) args[0];
 						return null;
 					}
 					case "commit", "rollback" -> {
@@ -401,6 +466,28 @@ public class LazyConnectionDataSourceProxy extends DelegatingDataSource {
 					case "getWarnings", "clearWarnings" -> {
 						// Ignore: no warnings to expose yet.
 						return null;
+					}
+					case "setNetworkTimeout" -> {
+						this.networkTimeoutExecutor = (Executor) args[0];
+						this.networkTimeout = (Integer) args[1];
+						return null;
+					}
+					case "getNetworkTimeout" -> {
+						if (this.networkTimeout != null) {
+							return this.networkTimeout;
+						}
+						// Else fetch actual Connection and check there.
+					}
+					case "setClientInfo" -> {
+						if (args.length == 2) {
+							if (this.clientInfo == null) {
+								this.clientInfo = new LinkedHashMap<>();
+							}
+							this.clientInfo.put((String) args[0], (String) args[1]);
+							return null;
+						}
+						// Else fetch actual Connection and check there.
+						// setClientInfo(Properties) will fall-through
 					}
 					case "close" -> {
 						// Ignore: no target connection yet.
@@ -425,11 +512,19 @@ public class LazyConnectionDataSourceProxy extends DelegatingDataSource {
 				return null;
 			}
 
-			// Target Connection already fetched,
-			// or target Connection necessary for current operation ->
-			// invoke method on target connection.
+
+			// Target Connection already fetched, or target Connection necessary for current operation
+			// -> invoke method on target connection.
 			try {
-				return method.invoke(getTargetConnection(method), args);
+				Connection conToUse = getTargetConnection(method);
+
+				if ("rollback".equals(method.getName()) && conToUse.isClosed()) {
+					// Connection closed in the meantime, probably due to a resource timeout. Since a
+					// rollback attempt typically happens right before close, we leniently suppress it.
+					return null;
+				}
+
+				return method.invoke(conToUse, args);
 			}
 			catch (InvocationTargetException ex) {
 				throw ex.getTargetException();
@@ -446,48 +541,73 @@ public class LazyConnectionDataSourceProxy extends DelegatingDataSource {
 		/**
 		 * Return the target Connection, fetching it and initializing it if necessary.
 		 */
-		private Connection getTargetConnection(Method operation) throws SQLException {
-			if (this.target == null) {
-				// No target Connection held -> fetch one.
-				if (logger.isTraceEnabled()) {
-					logger.trace("Connecting to database for operation '" + operation.getName() + "'");
-				}
-
-				// Fetch physical Connection from DataSource.
-				DataSource dataSource = getDataSourceToUse();
-				this.target = (this.username != null ? dataSource.getConnection(this.username, this.password) :
-						dataSource.getConnection());
-				if (this.target == null) {
-					throw new IllegalStateException("DataSource returned null from getConnection(): " + dataSource);
-				}
-
-				// Apply kept transaction settings, if any.
-				if (this.readOnly && readOnlyDataSource == null) {
-					try {
-						this.target.setReadOnly(true);
-					}
-					catch (Exception ex) {
-						// "read-only not supported" -> ignore, it's just a hint anyway
-						logger.debug("Could not set JDBC Connection read-only", ex);
-					}
-				}
-				if (this.transactionIsolation != null &&
-						!this.transactionIsolation.equals(defaultTransactionIsolation())) {
-					this.target.setTransactionIsolation(this.transactionIsolation);
-				}
-				if (this.autoCommit != null && this.autoCommit != defaultAutoCommit()) {
-					this.target.setAutoCommit(this.autoCommit);
-				}
-			}
-
-			else {
+		private Connection getTargetConnection(Method operation) throws Throwable {
+			Connection target = this.target;
+			if (target != null) {
 				// Target Connection already held -> return it.
 				if (logger.isTraceEnabled()) {
 					logger.trace("Using existing database connection for operation '" + operation.getName() + "'");
 				}
+				return target;
 			}
 
-			return this.target;
+			// No target Connection held -> fetch one.
+			if (logger.isTraceEnabled()) {
+				logger.trace("Connecting to database for operation '" + operation.getName() + "'");
+			}
+
+			// Fetch physical Connection from DataSource.
+			DataSource dataSource = getDataSourceToUse();
+			target = (this.username != null ? dataSource.getConnection(this.username, this.password) :
+					dataSource.getConnection());
+			if (target == null) {
+				throw new IllegalStateException("DataSource returned null from getConnection(): " + dataSource);
+			}
+
+			// Apply kept transaction settings, if any.
+			try {
+				if (this.catalog != null) {
+					target.setCatalog(this.catalog);
+				}
+				if (this.schema != null) {
+					target.setSchema(this.schema);
+				}
+				if (this.holdability != null) {
+					target.setHoldability(this.holdability);
+				}
+				if (this.readOnly && readOnlyDataSource == null) {
+					DataSourceUtils.setReadOnlyIfPossible(target);
+				}
+				if (this.transactionIsolation != null &&
+						!this.transactionIsolation.equals(defaultTransactionIsolation())) {
+					target.setTransactionIsolation(this.transactionIsolation);
+				}
+				if (this.autoCommit != null && this.autoCommit != defaultAutoCommit()) {
+					target.setAutoCommit(this.autoCommit);
+				}
+				if (this.networkTimeout != null) {
+					target.setNetworkTimeout(this.networkTimeoutExecutor, this.networkTimeout);
+				}
+				if (this.clientInfo != null) {
+					for (Map.Entry<String, String> entry: this.clientInfo.entrySet()) {
+						target.setClientInfo(entry.getKey(), entry.getValue());
+					}
+				}
+			}
+			catch (Throwable settingsEx) {
+				logger.debug("Failed to apply transaction settings to JDBC Connection", settingsEx);
+				// Close Connection and do not set it as target.
+				try {
+					target.close();
+				}
+				catch (Throwable closeEx) {
+					logger.debug("Could not close JDBC Connection after failed settings", closeEx);
+				}
+				throw settingsEx;
+			}
+
+			this.target = target;
+			return target;
 		}
 
 		private DataSource getDataSourceToUse() {

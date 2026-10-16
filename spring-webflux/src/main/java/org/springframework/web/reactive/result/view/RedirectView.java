@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -180,7 +180,7 @@ public class RedirectView extends AbstractUrlBasedView {
 	}
 
 	/**
-	 * Create the target URL and, if necessary, pre-pend the contextPath, expand
+	 * Create the target URL and, if necessary, prepend the contextPath, expand
 	 * URI template variables, append the current request query, and apply the
 	 * configured {@link #getRequestDataValueProcessor()
 	 * RequestDataValueProcessor}.

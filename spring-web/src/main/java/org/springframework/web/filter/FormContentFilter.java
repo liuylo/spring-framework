@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2021 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,10 +36,10 @@ import jakarta.servlet.http.HttpServletRequestWrapper;
 import jakarta.servlet.http.HttpServletResponse;
 import org.jspecify.annotations.Nullable;
 
+import org.springframework.core.ResolvableType;
 import org.springframework.http.HttpInputMessage;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.FormHttpMessageConverter;
-import org.springframework.http.converter.support.AllEncompassingFormHttpMessageConverter;
 import org.springframework.http.server.ServletServerHttpRequest;
 import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
@@ -47,8 +47,8 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
 
 /**
- * {@code Filter} that parses form data for HTTP PUT, PATCH, and DELETE requests
- * and exposes it as Servlet request parameters. By default the Servlet spec
+ * {@code Filter} that parses form data for HTTP PUT, PATCH, DELETE, and QUERY requests
+ * and exposes it as Servlet request parameters. By default, the Servlet spec
  * only requires this for HTTP POST.
  *
  * @author Rossen Stoyanchev
@@ -56,14 +56,14 @@ import org.springframework.util.StringUtils;
  */
 public class FormContentFilter extends OncePerRequestFilter {
 
-	private static final List<String> HTTP_METHODS = Arrays.asList("PUT", "PATCH", "DELETE");
+	private static final List<String> HTTP_METHODS = Arrays.asList("PUT", "PATCH", "DELETE", "QUERY");
 
-	private FormHttpMessageConverter formConverter = new AllEncompassingFormHttpMessageConverter();
+	private FormHttpMessageConverter formConverter = new FormHttpMessageConverter();
 
 
 	/**
 	 * Set the converter to use for parsing form content.
-	 * <p>By default this is an instance of {@link AllEncompassingFormHttpMessageConverter}.
+	 * <p>By default, this is an instance of {@link FormHttpMessageConverter}.
 	 */
 	public void setFormConverter(FormHttpMessageConverter converter) {
 		Assert.notNull(converter, "FormHttpMessageConverter is required");
@@ -94,6 +94,7 @@ public class FormContentFilter extends OncePerRequestFilter {
 		}
 	}
 
+	@SuppressWarnings("unchecked")
 	private @Nullable MultiValueMap<String, String> parseIfNecessary(HttpServletRequest request) throws IOException {
 		if (!shouldParse(request)) {
 			return null;
@@ -105,7 +106,7 @@ public class FormContentFilter extends OncePerRequestFilter {
 				return request.getInputStream();
 			}
 		};
-		return this.formConverter.read(null, inputMessage);
+		return (MultiValueMap<String, String>) this.formConverter.read(ResolvableType.forClassWithGenerics(MultiValueMap.class, String.class, String.class), inputMessage, null);
 	}
 
 	private boolean shouldParse(HttpServletRequest request) {
@@ -116,7 +117,7 @@ public class FormContentFilter extends OncePerRequestFilter {
 				MediaType mediaType = MediaType.parseMediaType(contentType);
 				return MediaType.APPLICATION_FORM_URLENCODED.includes(mediaType);
 			}
-			catch (IllegalArgumentException ex) {
+			catch (IllegalArgumentException ignored) {
 			}
 		}
 		return false;
@@ -159,7 +160,7 @@ public class FormContentFilter extends OncePerRequestFilter {
 		}
 
 		@Override
-		public @Nullable String[] getParameterValues(String name) {
+		public String[] getParameterValues(String name) {
 			String[] parameterValues = super.getParameterValues(name);
 			List<String> formParam = this.formParams.get(name);
 			if (formParam == null) {

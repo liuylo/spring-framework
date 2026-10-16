@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,12 +19,15 @@ package org.springframework.web.servlet.resource;
 import java.io.IOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.jspecify.annotations.Nullable;
 
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.ContextResource;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.core.log.LogFormatUtils;
@@ -51,17 +54,31 @@ public abstract class ResourceHandlerUtils {
 
 
 	/**
-	 * Assert the given location is not null, and its path ends on slash.
+	 * Assert the given location is valid.
+	 * Location should not be null, its path ends with a slash, and not be an unsafe location.
 	 */
+	@SuppressWarnings("removal")
 	public static void assertResourceLocation(@Nullable Resource location) {
 		Assert.notNull(location, "Resource location must not be null");
 		try {
 			String path;
-			if (location instanceof UrlResource) {
-				path = location.getURL().toExternalForm();
+			if (location instanceof org.springframework.core.io.PathResource) {
+				return;
+			}
+			else if (location instanceof FileSystemResource fileSystemResource) {
+				path = fileSystemResource.getPath();
 			}
 			else if (location instanceof ClassPathResource classPathResource) {
 				path = classPathResource.getPath();
+				Assert.isTrue(!path.isEmpty() && !"/".equals(path),
+						() -> "Resource location '" + location + "' is considered unsafe " +
+								"and cannot be used as it provides access to the entire classpath.");
+			}
+			else if (location instanceof ContextResource contextResource) {
+				path = contextResource.getPathWithinContext();
+			}
+			else if (location instanceof UrlResource) {
+				path = location.getURL().toExternalForm();
 			}
 			else {
 				path = location.getURL().getPath();
@@ -69,8 +86,7 @@ public abstract class ResourceHandlerUtils {
 			Assert.isTrue(path.endsWith(FOLDER_SEPARATOR) || path.endsWith(WINDOWS_FOLDER_SEPARATOR),
 					"Resource location does not end with slash: " + path);
 		}
-		catch (IOException ex) {
-			// ignore
+		catch (IOException ignored) {
 		}
 	}
 
@@ -156,7 +172,6 @@ public abstract class ResourceHandlerUtils {
 	/**
 	 * Checks for invalid resource input paths rejecting the following:
 	 * <ul>
-	 * <li>Paths that contain "WEB-INF" or "META-INF"
 	 * <li>Paths that contain "../" after a call to
 	 * {@link org.springframework.util.StringUtils#cleanPath}.
 	 * <li>Paths that represent a {@link org.springframework.util.ResourceUtils#isUrl
@@ -169,7 +184,8 @@ public abstract class ResourceHandlerUtils {
 	 * @return {@code true} if the path is invalid, {@code false} otherwise
 	 */
 	public static boolean isInvalidPath(String path) {
-		if (path.contains("WEB-INF") || path.contains("META-INF")) {
+		String pathLowerCase = path.toLowerCase(Locale.ROOT);
+		if (pathLowerCase.contains("web-inf") || pathLowerCase.contains("meta-inf")) {
 			if (logger.isWarnEnabled()) {
 				logger.warn(LogFormatUtils.formatValue(
 						"Path with \"WEB-INF\" or \"META-INF\": [" + path + "]", -1, true));

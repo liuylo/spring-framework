@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,6 +50,7 @@ public class ParameterizableViewController extends AbstractController {
 		super(false);
 		setSupportedMethods(HttpMethod.GET.name(), HttpMethod.HEAD.name());
 	}
+
 
 	/**
 	 * Set a view name for the ModelAndView to return, to be resolved by the
@@ -117,12 +118,11 @@ public class ParameterizableViewController extends AbstractController {
 		return this.statusCode;
 	}
 
-
 	/**
 	 * The property can be used to indicate the request is considered fully
 	 * handled within the controller and that no view should be used for rendering.
 	 * Useful in combination with {@link #setStatusCode}.
-	 * <p>By default this is set to {@code false}.
+	 * <p>By default, this is set to {@code false}.
 	 * @since 4.1
 	 */
 	public void setStatusOnly(boolean statusOnly) {
@@ -187,10 +187,11 @@ public class ParameterizableViewController extends AbstractController {
 			sb.append("status=").append(this.statusCode);
 		}
 		if (this.view != null) {
-			sb.append(sb.length() != 0 ? ", " : "");
+			sb.append(!sb.isEmpty() ? ", " : "");
 			String viewName = getViewName();
 			sb.append("view=").append(viewName != null ? "\"" + viewName + "\"" : this.view);
 		}
 		return sb.toString();
 	}
+
 }

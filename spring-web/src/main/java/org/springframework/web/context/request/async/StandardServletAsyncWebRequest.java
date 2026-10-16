@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -235,8 +235,7 @@ public class StandardServletAsyncWebRequest extends ServletWebRequest implements
 					break;
 				}
 			}
-			catch (InterruptedException ex) {
-				// ignore
+			catch (InterruptedException ignored) {
 			}
 		}
 
@@ -390,6 +389,7 @@ public class StandardServletAsyncWebRequest extends ServletWebRequest implements
 			}
 		}
 
+		@Override
 		public void write(byte[] buf, int offset, int len) throws IOException {
 			int level = this.response.obtainLockOrRaiseException();
 			try {
@@ -453,221 +453,172 @@ public class StandardServletAsyncWebRequest extends ServletWebRequest implements
 
 		@Override
 		public void flush() {
+			invokeWithLock(this.delegate::flush);
+		}
+
+		private void invokeWithLock(Runnable runnable) {
 			int level = this.asyncWebRequest.tryObtainLock();
 			if (level > -1) {
 				try {
-					this.delegate.flush();
+					runnable.run();
 				}
 				finally {
-					releaseLock(level);
+					if (level > 0) {
+						this.asyncWebRequest.stateLock.unlock();
+					}
 				}
 			}
 		}
 
 		@Override
 		public void close() {
-			int level = this.asyncWebRequest.tryObtainLock();
-			if (level > -1) {
-				try {
-					this.delegate.close();
-				}
-				finally {
-					releaseLock(level);
-				}
-			}
-		}
-
-		@Override
-		public boolean checkError() {
-			return this.delegate.checkError();
+			invokeWithLock(this.delegate::close);
 		}
 
 		@Override
 		public void write(int c) {
-			int level = this.asyncWebRequest.tryObtainLock();
-			if (level > -1) {
-				try {
-					this.delegate.write(c);
-				}
-				finally {
-					releaseLock(level);
-				}
-			}
+			invokeWithLock(() -> this.delegate.write(c));
 		}
 
 		@Override
 		public void write(char[] buf, int off, int len) {
-			int level = this.asyncWebRequest.tryObtainLock();
-			if (level > -1) {
-				try {
-					this.delegate.write(buf, off, len);
-				}
-				finally {
-					releaseLock(level);
-				}
-			}
+			invokeWithLock(() -> this.delegate.write(buf, off, len));
 		}
 
 		@Override
 		public void write(char[] buf) {
-			this.delegate.write(buf);
+			write(buf, 0, buf.length);
 		}
 
 		@Override
 		public void write(String s, int off, int len) {
-			int level = this.asyncWebRequest.tryObtainLock();
-			if (level > -1) {
-				try {
-					this.delegate.write(s, off, len);
-				}
-				finally {
-					releaseLock(level);
-				}
-			}
+			invokeWithLock(() -> this.delegate.write(s, off, len));
 		}
 
 		@Override
 		public void write(String s) {
-			this.delegate.write(s);
-		}
-
-		private void releaseLock(int level) {
-			if (level > 0) {
-				this.asyncWebRequest.stateLock.unlock();
-			}
+			write(s, 0, s.length());
 		}
 
 		// Plain delegates
 
 		@Override
 		public void print(boolean b) {
-			this.delegate.print(b);
+			write(String.valueOf(b));
 		}
 
 		@Override
 		public void print(char c) {
-			this.delegate.print(c);
+			write(c);
 		}
 
 		@Override
 		public void print(int i) {
-			this.delegate.print(i);
+			write(String.valueOf(i));
 		}
 
 		@Override
 		public void print(long l) {
-			this.delegate.print(l);
+			write(String.valueOf(l));
 		}
 
 		@Override
 		public void print(float f) {
-			this.delegate.print(f);
+			write(String.valueOf(f));
 		}
 
 		@Override
 		public void print(double d) {
-			this.delegate.print(d);
+			write(String.valueOf(d));
 		}
 
 		@Override
 		public void print(char[] s) {
-			this.delegate.print(s);
+			write(s);
 		}
 
 		@Override
 		public void print(String s) {
-			this.delegate.print(s);
+			write(String.valueOf(s));
 		}
 
 		@Override
 		public void print(Object obj) {
-			this.delegate.print(obj);
+			write(String.valueOf(obj));
 		}
 
 		@Override
 		public void println() {
-			this.delegate.println();
+			invokeWithLock(this.delegate::println);
 		}
 
 		@Override
 		public void println(boolean x) {
-			this.delegate.println(x);
+			invokeWithLock(() -> this.delegate.println(x));
 		}
 
 		@Override
 		public void println(char x) {
-			this.delegate.println(x);
+			invokeWithLock(() -> this.delegate.println(x));
 		}
 
 		@Override
 		public void println(int x) {
-			this.delegate.println(x);
+			invokeWithLock(() -> this.delegate.println(x));
 		}
 
 		@Override
 		public void println(long x) {
-			this.delegate.println(x);
+			invokeWithLock(() -> this.delegate.println(x));
 		}
 
 		@Override
 		public void println(float x) {
-			this.delegate.println(x);
+			invokeWithLock(() -> this.delegate.println(x));
 		}
 
 		@Override
 		public void println(double x) {
-			this.delegate.println(x);
+			invokeWithLock(() -> this.delegate.println(x));
 		}
 
 		@Override
 		public void println(char[] x) {
-			this.delegate.println(x);
+			invokeWithLock(() -> this.delegate.println(x));
 		}
 
 		@Override
 		public void println(String x) {
-			this.delegate.println(x);
+			invokeWithLock(() -> this.delegate.println(x));
 		}
 
 		@Override
 		public void println(Object x) {
-			this.delegate.println(x);
+			invokeWithLock(() -> this.delegate.println(x));
 		}
 
 		@Override
 		public PrintWriter printf(String format, Object... args) {
-			return this.delegate.printf(format, args);
+			return format(format, args);
 		}
 
 		@Override
 		public PrintWriter printf(Locale l, String format, Object... args) {
-			return this.delegate.printf(l, format, args);
+			return format(format, args);
 		}
 
 		@Override
 		public PrintWriter format(String format, Object... args) {
-			return this.delegate.format(format, args);
+			invokeWithLock(() -> this.delegate.format(format, args));
+			return this;
 		}
 
 		@Override
 		public PrintWriter format(Locale l, String format, Object... args) {
-			return this.delegate.format(l, format, args);
+			invokeWithLock(() -> this.delegate.format(format, args));
+			return this;
 		}
 
-		@Override
-		public PrintWriter append(CharSequence csq) {
-			return this.delegate.append(csq);
-		}
-
-		@Override
-		public PrintWriter append(CharSequence csq, int start, int end) {
-			return this.delegate.append(csq, start, end);
-		}
-
-		@Override
-		public PrintWriter append(char c) {
-			return this.delegate.append(c);
-		}
 	}
 
 

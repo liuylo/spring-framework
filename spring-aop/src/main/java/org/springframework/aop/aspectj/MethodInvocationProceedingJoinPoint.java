@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@ import org.jspecify.annotations.Nullable;
 
 import org.springframework.aop.ProxyMethodInvocation;
 import org.springframework.core.DefaultParameterNameDiscoverer;
-import org.springframework.core.ParameterNameDiscoverer;
 import org.springframework.util.Assert;
 
 /**
@@ -51,11 +50,9 @@ import org.springframework.util.Assert;
  */
 public class MethodInvocationProceedingJoinPoint implements ProceedingJoinPoint, JoinPoint.StaticPart {
 
-	private static final ParameterNameDiscoverer parameterNameDiscoverer = new DefaultParameterNameDiscoverer();
-
 	private final ProxyMethodInvocation methodInvocation;
 
-	private Object @Nullable [] args;
+	private @Nullable Object @Nullable [] args;
 
 	/** Lazily initialized signature object. */
 	private @Nullable Signature signature;
@@ -114,7 +111,8 @@ public class MethodInvocationProceedingJoinPoint implements ProceedingJoinPoint,
 	}
 
 	@Override
-	public Object[] getArgs() {
+	@SuppressWarnings("NullAway") // Overridden method does not define nullness
+	public @Nullable Object[] getArgs() {
 		if (this.args == null) {
 			this.args = this.methodInvocation.getArguments().clone();
 		}
@@ -165,7 +163,7 @@ public class MethodInvocationProceedingJoinPoint implements ProceedingJoinPoint,
 
 	@Override
 	public String toString() {
-		return "execution(" + getSignature().toString() + ")";
+		return "execution(" + getSignature() + ")";
 	}
 
 
@@ -174,7 +172,7 @@ public class MethodInvocationProceedingJoinPoint implements ProceedingJoinPoint,
 	 */
 	private class MethodSignatureImpl implements MethodSignature {
 
-		private volatile String @Nullable [] parameterNames;
+		private volatile @Nullable String @Nullable [] parameterNames;
 
 		@Override
 		public String getName() {
@@ -212,10 +210,11 @@ public class MethodInvocationProceedingJoinPoint implements ProceedingJoinPoint,
 		}
 
 		@Override
-		public String @Nullable [] getParameterNames() {
-			String[] parameterNames = this.parameterNames;
+		@SuppressWarnings("NullAway") // Overridden method does not define nullness
+		public @Nullable String @Nullable [] getParameterNames() {
+			@Nullable String[] parameterNames = this.parameterNames;
 			if (parameterNames == null) {
-				parameterNames = parameterNameDiscoverer.getParameterNames(getMethod());
+				parameterNames = DefaultParameterNameDiscoverer.getSharedInstance().getParameterNames(getMethod());
 				this.parameterNames = parameterNames;
 			}
 			return parameterNames;
@@ -317,7 +316,7 @@ public class MethodInvocationProceedingJoinPoint implements ProceedingJoinPoint,
 		}
 
 		@Override
-		@Deprecated
+		@Deprecated(since = "4.0") // deprecated by AspectJ
 		public int getColumn() {
 			throw new UnsupportedOperationException();
 		}

@@ -414,7 +414,7 @@ public abstract class MethodVisitor {
    * @param descriptor the method's descriptor (see {@link Type}).
    * @deprecated use {@link #visitMethodInsn(int, String, String, String, boolean)} instead.
    */
-  @Deprecated
+  @Deprecated(forRemoval = false)
   public void visitMethodInsn(
       final int opcode, final String owner, final String name, final String descriptor) {
     int opcodeAndSource = opcode | (api < Opcodes.ASM5 ? Opcodes.SOURCE_DEPRECATED : 0);
@@ -594,7 +594,7 @@ public abstract class MethodVisitor {
    * Visits a LOOKUPSWITCH instruction.
    *
    * @param dflt beginning of the default handler block.
-   * @param keys the values of the keys.
+   * @param keys the values of the keys. Keys must be sorted in increasing order.
    * @param labels beginnings of the handler blocks. {@code labels[i]} is the beginning of the
    *     handler block for the {@code keys[i]} key.
    */

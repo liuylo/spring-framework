@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -170,7 +170,7 @@ class HttpRangeTests {
 	}
 
 	@Test // gh-23576
-	public void toResourceRegionStartingAtResourceByteCount() {
+	void toResourceRegionStartingAtResourceByteCount() {
 		byte[] bytes = "Spring Framework".getBytes(StandardCharsets.UTF_8);
 		ByteArrayResource resource = new ByteArrayResource(bytes);
 		HttpRange range = HttpRange.createByteRange(resource.contentLength());

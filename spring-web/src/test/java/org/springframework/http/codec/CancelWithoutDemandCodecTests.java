@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ReactiveHttpOutputMessage;
 import org.springframework.http.client.MultipartBodyBuilder;
-import org.springframework.http.codec.json.Jackson2JsonEncoder;
+import org.springframework.http.codec.json.JacksonJsonEncoder;
 import org.springframework.http.codec.multipart.MultipartHttpMessageWriter;
 import org.springframework.http.codec.protobuf.ProtobufDecoder;
 import org.springframework.http.codec.protobuf.ProtobufEncoder;
@@ -65,7 +65,7 @@ class CancelWithoutDemandCodecTests {
 
 
 	@Test // gh-22107
-	public void cancelWithEncoderHttpMessageWriterAndSingleValue() {
+	void cancelWithEncoderHttpMessageWriterAndSingleValue() {
 		CharSequenceEncoder encoder = CharSequenceEncoder.allMimeTypes();
 		HttpMessageWriter<CharSequence> writer = new EncoderHttpMessageWriter<>(encoder);
 		CancellingOutputMessage outputMessage = new CancellingOutputMessage(this.bufferFactory);
@@ -75,8 +75,8 @@ class CancelWithoutDemandCodecTests {
 	}
 
 	@Test // gh-22107
-	public void cancelWithJackson() {
-		Jackson2JsonEncoder encoder = new Jackson2JsonEncoder();
+	void cancelWithJackson() {
+		JacksonJsonEncoder encoder = new JacksonJsonEncoder();
 
 		Flux<DataBuffer> flux = encoder.encode(Flux.just(new Pojo("foofoo", "barbar"), new Pojo("bar", "baz")),
 				this.bufferFactory, ResolvableType.forClass(Pojo.class),
@@ -88,7 +88,7 @@ class CancelWithoutDemandCodecTests {
 	}
 
 	@Test // gh-22107
-	public void cancelWithJaxb2() {
+	void cancelWithJaxb2() {
 		Jaxb2XmlEncoder encoder = new Jaxb2XmlEncoder();
 
 		Flux<DataBuffer> flux = encoder.encode(Mono.just(new Pojo("foo", "bar")),
@@ -101,7 +101,7 @@ class CancelWithoutDemandCodecTests {
 	}
 
 	@Test // gh-22543
-	public void cancelWithProtobufEncoder() {
+	void cancelWithProtobufEncoder() {
 		ProtobufEncoder encoder = new ProtobufEncoder();
 		Msg msg = Msg.newBuilder().setFoo("Foo").setBlah(SecondMsg.newBuilder().setBlah(123).build()).build();
 
@@ -115,7 +115,7 @@ class CancelWithoutDemandCodecTests {
 	}
 
 	@Test // gh-22731
-	public void cancelWithProtobufDecoder() {
+	void cancelWithProtobufDecoder() {
 		ProtobufDecoder decoder = new ProtobufDecoder();
 
 		Mono<DataBuffer> input = Mono.fromCallable(() -> {
@@ -134,7 +134,7 @@ class CancelWithoutDemandCodecTests {
 	}
 
 	@Test // gh-22107
-	public void cancelWithMultipartContent() {
+	void cancelWithMultipartContent() {
 		MultipartBodyBuilder builder = new MultipartBodyBuilder();
 		builder.part("part1", "value1");
 		builder.part("part2", "value2");
@@ -148,9 +148,9 @@ class CancelWithoutDemandCodecTests {
 	}
 
 	@Test // gh-22107
-	public void cancelWithSse() {
+	void cancelWithSse() {
 		ServerSentEvent<?> event = ServerSentEvent.builder().data("bar").id("c42").event("foo").build();
-		ServerSentEventHttpMessageWriter writer = new ServerSentEventHttpMessageWriter(new Jackson2JsonEncoder());
+		ServerSentEventHttpMessageWriter writer = new ServerSentEventHttpMessageWriter(new JacksonJsonEncoder());
 		CancellingOutputMessage outputMessage = new CancellingOutputMessage(this.bufferFactory);
 
 		writer.write(Mono.just(event), ResolvableType.forClass(ServerSentEvent.class), MediaType.TEXT_EVENT_STREAM,
@@ -229,4 +229,5 @@ class CancelWithoutDemandCodecTests {
 			// Just subscribe without requesting
 		}
 	}
+
 }

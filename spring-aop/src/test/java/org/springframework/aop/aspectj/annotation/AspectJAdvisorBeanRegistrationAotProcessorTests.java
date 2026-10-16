@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ class AspectJAdvisorBeanRegistrationAotProcessorTests {
 	@Test
 	void shouldProcessAspectJClass() {
 		process(AspectJClass.class);
-		assertThat(reflection().onType(AspectJClass.class).withMemberCategory(MemberCategory.INVOKE_DECLARED_FIELDS))
+		assertThat(reflection().onType(AspectJClass.class).withMemberCategory(MemberCategory.ACCESS_DECLARED_FIELDS))
 				.accepts(this.runtimeHints);
 	}
 

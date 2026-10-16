@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,6 +41,7 @@ import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.CONFLICT;
 import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.GATEWAY_TIMEOUT;
+import static org.springframework.http.HttpStatus.GONE;
 import static org.springframework.http.HttpStatus.HTTP_VERSION_NOT_SUPPORTED;
 import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
 import static org.springframework.http.HttpStatus.I_AM_A_TEAPOT;
@@ -48,15 +49,19 @@ import static org.springframework.http.HttpStatus.METHOD_NOT_ALLOWED;
 import static org.springframework.http.HttpStatus.NOT_ACCEPTABLE;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 import static org.springframework.http.HttpStatus.NOT_IMPLEMENTED;
+import static org.springframework.http.HttpStatus.PRECONDITION_FAILED;
 import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
 import static org.springframework.http.HttpStatus.TOO_MANY_REQUESTS;
 import static org.springframework.http.HttpStatus.UNAUTHORIZED;
+import static org.springframework.http.HttpStatus.UNPROCESSABLE_CONTENT;
 import static org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY;
+import static org.springframework.http.HttpStatus.UNSUPPORTED_MEDIA_TYPE;
 
 /**
  * Tests for {@link DefaultResponseErrorHandler} handling of specific
  * HTTP status codes.
  */
+@SuppressWarnings("removal")
 class DefaultResponseErrorHandlerHttpStatusTests {
 
 	private final DefaultResponseErrorHandler handler = new DefaultResponseErrorHandler();
@@ -86,6 +91,7 @@ class DefaultResponseErrorHandlerHttpStatusTests {
 				.isThrownBy(() -> this.handler.handleError(URI.create("/"), HttpMethod.GET, this.response));
 	}
 
+	@SuppressWarnings("deprecation")
 	static Stream<Arguments> errorCodes() {
 		return Stream.of(
 			// 4xx
@@ -96,8 +102,12 @@ class DefaultResponseErrorHandlerHttpStatusTests {
 			args(METHOD_NOT_ALLOWED, HttpClientErrorException.MethodNotAllowed.class),
 			args(NOT_ACCEPTABLE, HttpClientErrorException.NotAcceptable.class),
 			args(CONFLICT, HttpClientErrorException.Conflict.class),
+			args(GONE, HttpClientErrorException.Gone.class),
+			args(PRECONDITION_FAILED, HttpClientErrorException.PreconditionFailed.class),
+			args(UNSUPPORTED_MEDIA_TYPE, HttpClientErrorException.UnsupportedMediaType.class),
 			args(TOO_MANY_REQUESTS, HttpClientErrorException.TooManyRequests.class),
 			args(UNPROCESSABLE_ENTITY, HttpClientErrorException.UnprocessableEntity.class),
+			args(UNPROCESSABLE_CONTENT, HttpClientErrorException.UnprocessableContent.class),
 			args(I_AM_A_TEAPOT, HttpClientErrorException.class),
 			// 5xx
 			args(INTERNAL_SERVER_ERROR, HttpServerErrorException.InternalServerError.class),

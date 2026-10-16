@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -174,7 +174,7 @@ class DefaultCorsProcessorTests {
 	}
 
 	@Test // gh-26892
-	public void actualRequestTrailingSlashOriginMatch() throws Exception {
+	void actualRequestTrailingSlashOriginMatch() throws Exception {
 		this.request.setMethod(HttpMethod.GET.name());
 		this.request.addHeader(HttpHeaders.ORIGIN, "https://domain2.com/");
 		this.conf.addAllowedOrigin("https://domain2.com");
@@ -185,7 +185,7 @@ class DefaultCorsProcessorTests {
 	}
 
 	@Test //gh-33682
-	public void actualRequestMalformedOriginRejected() throws Exception {
+	void actualRequestMalformedOriginRejected() throws Exception {
 		this.request.setMethod(HttpMethod.GET.name());
 		this.request.addHeader(HttpHeaders.ORIGIN, "http://*@:;");
 		this.conf.addAllowedOrigin("https://domain2.com");
@@ -459,7 +459,8 @@ class DefaultCorsProcessorTests {
 
 		this.processor.processRequest(null, this.request, this.response);
 		assertThat(this.response.containsHeader(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN)).isFalse();
-		assertThat(this.response.getStatus()).isEqualTo(HttpServletResponse.SC_FORBIDDEN);
+		assertThat(this.response.containsHeader(HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS)).isFalse();
+		assertThat(this.response.getStatus()).isEqualTo(HttpServletResponse.SC_OK);
 	}
 
 	@Test

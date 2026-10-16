@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -66,6 +66,7 @@ import org.springframework.web.servlet.View;
 import org.springframework.web.servlet.ViewResolver;
 import org.springframework.web.servlet.i18n.AcceptHeaderLocaleResolver;
 import org.springframework.web.servlet.view.FragmentsRendering;
+import org.springframework.web.util.SseUtils;
 
 /**
  * Handler for return values of type:
@@ -135,7 +136,7 @@ public class ResponseBodyEmitterReturnValueHandler implements HandlerMethodRetur
 	 * @param executor for blocking I/O writes of items emitted from reactive types
 	 * @param manager for detecting streaming media types
 	 * @param viewResolvers resolvers for fragment stream rendering
-	 * @param localeResolver localeResolver for fragment stream rendering
+	 * @param localeResolver the {@link LocaleResolver} for fragment stream rendering
 	 * @since 6.2
 	 */
 	public ResponseBodyEmitterReturnValueHandler(
@@ -169,8 +170,11 @@ public class ResponseBodyEmitterReturnValueHandler implements HandlerMethodRetur
 				ResolvableType.forMethodParameter(returnType).getGeneric().resolve() :
 				returnType.getParameterType();
 
-		return (bodyType != null && (ResponseBodyEmitter.class.isAssignableFrom(bodyType) ||
-				this.reactiveHandler.isReactiveType(bodyType)));
+		return (bodyType != null && supportsBodyType(bodyType));
+	}
+
+	boolean supportsBodyType(Class<?> bodyType) {
+		return (ResponseBodyEmitter.class.isAssignableFrom(bodyType) || this.reactiveHandler.isReactiveType(bodyType));
 	}
 
 	@Override
@@ -186,10 +190,12 @@ public class ResponseBodyEmitterReturnValueHandler implements HandlerMethodRetur
 		HttpServletResponse response = webRequest.getNativeResponse(HttpServletResponse.class);
 		Assert.state(response != null, "No HttpServletResponse");
 		ServerHttpResponse outputMessage = new ServletServerHttpResponse(response);
+		MediaType contentType = null;
 
 		if (returnValue instanceof ResponseEntity<?> responseEntity) {
 			response.setStatus(responseEntity.getStatusCode().value());
 			outputMessage.getHeaders().putAll(responseEntity.getHeaders());
+			contentType = responseEntity.getHeaders().getContentType();
 			returnValue = responseEntity.getBody();
 			returnType = returnType.nested();
 			if (returnValue == null) {
@@ -207,14 +213,9 @@ public class ResponseBodyEmitterReturnValueHandler implements HandlerMethodRetur
 			emitter = responseBodyEmitter;
 		}
 		else {
-			emitter = this.reactiveHandler.handleValue(returnValue, returnType, mavContainer, webRequest);
+			emitter = this.reactiveHandler.handleValue(returnValue, returnType, contentType, mavContainer, webRequest);
 			if (emitter == null) {
-				// We're not streaming; write headers without committing response
-				outputMessage.getHeaders().forEach((headerName, headerValues) -> {
-					for (String headerValue : headerValues) {
-						response.addHeader(headerName, headerValue);
-					}
-				});
+				// reactive but not streaming, e.g. Mono or aggregated Flux
 				return;
 			}
 		}
@@ -404,7 +405,7 @@ public class ResponseBodyEmitterReturnValueHandler implements HandlerMethodRetur
 				throw ex;
 			}
 			catch (Exception ex) {
-				throw new RuntimeException("Failed to render " + modelAndView, ex);
+				throw new IllegalStateException("Failed to render " + modelAndView, ex);
 			}
 			finally {
 				RequestContextHolder.resetRequestAttributes();
@@ -454,6 +455,11 @@ public class ResponseBodyEmitterReturnValueHandler implements HandlerMethodRetur
 		}
 
 		@Override
+		public void setCharacterEncoding(Charset encoding) {
+			// ignore
+		}
+
+		@Override
 		public void setContentLength(int len) {
 			// ignore
 		}
@@ -471,8 +477,9 @@ public class ResponseBodyEmitterReturnValueHandler implements HandlerMethodRetur
 		public byte[] getFragmentContent() {
 			this.writer.flush();
 			String content = this.outputStream.toString(this.charset);
-			content = content.replace("\n", "\ndata:");
-			return content.getBytes(this.charset);
+			StringBuilder fragment = new StringBuilder();
+			SseUtils.appendFieldValue("data", content, fragment);
+			return fragment.toString().getBytes(this.charset);
 		}
 	}
 

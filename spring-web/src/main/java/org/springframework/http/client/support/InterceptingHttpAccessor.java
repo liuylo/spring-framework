@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,7 +42,10 @@ import org.springframework.util.CollectionUtils;
  * @see ClientHttpRequestInterceptor
  * @see InterceptingClientHttpRequestFactory
  * @see org.springframework.web.client.RestTemplate
+ * @deprecated since 7.1 with no replacement.
  */
+@Deprecated(since = "7.1", forRemoval = true)
+@SuppressWarnings("removal")
 public abstract class InterceptingHttpAccessor extends HttpAccessor {
 
 	private final List<ClientHttpRequestInterceptor> interceptors = new ArrayList<>();
@@ -99,7 +102,8 @@ public abstract class InterceptingHttpAccessor extends HttpAccessor {
 		if (!CollectionUtils.isEmpty(interceptors)) {
 			ClientHttpRequestFactory factory = this.interceptingRequestFactory;
 			if (factory == null) {
-				factory = new InterceptingClientHttpRequestFactory(super.getRequestFactory(), interceptors);
+				factory = new InterceptingClientHttpRequestFactory(
+						super.getRequestFactory(), interceptors, getBufferingPredicate());
 				this.interceptingRequestFactory = factory;
 			}
 			return factory;

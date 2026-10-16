@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2021 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -162,7 +162,7 @@ public abstract class EntityManagerFactoryAccessor implements BeanFactoryAware {
 	protected EntityManager createEntityManager() throws IllegalStateException {
 		EntityManagerFactory emf = obtainEntityManagerFactory();
 		Map<String, Object> properties = getJpaPropertyMap();
-		return (!CollectionUtils.isEmpty(properties) ? emf.createEntityManager(properties) : emf.createEntityManager());
+		return EntityManagerFactoryUtils.createEntityManager(emf, properties);
 	}
 
 	/**

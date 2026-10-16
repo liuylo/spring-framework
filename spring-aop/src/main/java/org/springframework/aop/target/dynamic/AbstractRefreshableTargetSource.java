@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,8 +42,7 @@ public abstract class AbstractRefreshableTargetSource implements TargetSource, R
 	/** Logger available to subclasses. */
 	protected final Log logger = LogFactory.getLog(getClass());
 
-	@SuppressWarnings("NullAway.Init")
-	protected Object targetObject;
+	protected @Nullable Object targetObject;
 
 	private long refreshCheckDelay = -1;
 
@@ -66,11 +65,11 @@ public abstract class AbstractRefreshableTargetSource implements TargetSource, R
 
 
 	@Override
-	public synchronized Class<?> getTargetClass() {
+	public synchronized @Nullable Class<?> getTargetClass() {
 		if (this.targetObject == null) {
 			refresh();
 		}
-		return this.targetObject.getClass();
+		return (this.targetObject != null ? this.targetObject.getClass() : null);
 	}
 
 	@Override

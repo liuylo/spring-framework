@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import java.util.function.Predicate;
 import org.jspecify.annotations.Nullable;
 
 import org.springframework.util.Assert;
+import org.springframework.util.ClassUtils;
 
 /**
  * Abstract base class for {@link MergedAnnotation} implementations.
@@ -215,7 +216,7 @@ abstract class AbstractMergedAnnotation<A extends Annotation> implements MergedA
 		T value = getAttributeValue(attributeName, type);
 		if (value == null) {
 			throw new NoSuchElementException("No attribute named '" + attributeName +
-					"' present in merged annotation " + getType().getName());
+					"' present in merged annotation " + ClassUtils.getCanonicalName(getType()));
 		}
 		return value;
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ import org.springframework.util.ObjectUtils;
  *
  * <p>Allows for registration of {@link ScheduledExecutorTask ScheduledExecutorTasks},
  * automatically starting the {@link ScheduledExecutorService} on initialization and
- * canceling it on destruction of the context. In scenarios that only require static
+ * cancelling it on destruction of the context. In scenarios that only require static
  * registration of tasks at startup, there is no need to access the
  * {@link ScheduledExecutorService} instance itself in application code at all;
  * {@code ScheduledExecutorFactoryBean} is then just being used for lifecycle integration.

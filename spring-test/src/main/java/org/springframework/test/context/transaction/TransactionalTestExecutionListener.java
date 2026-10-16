@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -100,9 +100,8 @@ import org.springframework.util.StringUtils;
  * execute certain <em>set up</em> or <em>tear down</em> code outside a
  * transaction. {@code TransactionalTestExecutionListener} provides such
  * support for methods annotated with {@link BeforeTransaction @BeforeTransaction}
- * or {@link AfterTransaction @AfterTransaction}. As of Spring Framework 4.3,
- * {@code @BeforeTransaction} and {@code @AfterTransaction} may also be declared
- * on Java 8 based interface default methods.
+ * or {@link AfterTransaction @AfterTransaction}. {@code @BeforeTransaction} and
+ * {@code @AfterTransaction} may also be declared on interface default methods.
  *
  * <h3>Configuring a Transaction Manager</h3>
  * <p>{@code TransactionalTestExecutionListener} expects a
@@ -148,6 +147,12 @@ import org.springframework.util.StringUtils;
  */
 public class TransactionalTestExecutionListener extends AbstractTestExecutionListener {
 
+	/**
+	 * The {@link #getOrder() order} value for this listener: {@value}.
+	 * @since 6.2.3
+	 */
+	public static final int ORDER = 4000;
+
 	private static final Log logger = LogFactory.getLog(TransactionalTestExecutionListener.class);
 
 	// Do not require @Transactional test methods to be public.
@@ -175,11 +180,16 @@ public class TransactionalTestExecutionListener extends AbstractTestExecutionLis
 
 
 	/**
-	 * Returns {@code 4000}.
+	 * Returns {@value #ORDER}, which ensures that the {@code TransactionalTestExecutionListener}
+	 * is ordered after the
+	 * {@link org.springframework.test.context.support.CommonCachesTestExecutionListener
+	 * CommonCachesTestExecutionListener} and before the
+	 * {@link org.springframework.test.context.jdbc.SqlScriptsTestExecutionListener
+	 * SqlScriptsTestExecutionListener}.
 	 */
 	@Override
 	public final int getOrder() {
-		return 4000;
+		return ORDER;
 	}
 
 	/**

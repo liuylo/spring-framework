@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -159,7 +159,7 @@ public class EmbeddedDatabaseFactory {
 	 * Factory method that returns the {@linkplain EmbeddedDatabase embedded database}
 	 * instance, which is also a {@link DataSource}.
 	 */
-	@SuppressWarnings("NullAway") // Lazy initialization
+	@SuppressWarnings("NullAway") // Dataflow analysis limitation
 	public EmbeddedDatabase getDatabase() {
 		if (this.dataSource == null) {
 			initDatabase();

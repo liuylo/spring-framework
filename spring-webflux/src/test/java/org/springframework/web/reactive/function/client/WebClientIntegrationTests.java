@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 
 package org.springframework.web.reactive.function.client;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -40,12 +39,14 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import io.netty.channel.Channel;
 import io.netty.util.Attribute;
-import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
-import okhttp3.mockwebserver.RecordedRequest;
+import mockwebserver3.MockResponse;
+import mockwebserver3.MockWebServer;
+import mockwebserver3.RecordedRequest;
 import org.eclipse.jetty.client.Request;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -55,6 +56,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 import reactor.netty.channel.ChannelOperations;
 import reactor.netty.http.client.HttpClient;
+import reactor.netty.http.client.HttpClientRequest;
 import reactor.netty.resources.ConnectionProvider;
 import reactor.test.StepVerifier;
 
@@ -77,7 +79,6 @@ import org.springframework.http.client.reactive.HttpComponentsClientHttpConnecto
 import org.springframework.http.client.reactive.JdkClientHttpConnector;
 import org.springframework.http.client.reactive.JettyClientHttpConnector;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
-import org.springframework.http.client.reactive.ReactorNetty2ClientHttpConnector;
 import org.springframework.web.reactive.function.BodyExtractors;
 import org.springframework.web.reactive.function.client.WebClient.ResponseSpec;
 import org.springframework.web.testfixture.xml.Pojo;
@@ -107,7 +108,6 @@ class WebClientIntegrationTests {
 	static Stream<Arguments> arguments() {
 		return Stream.of(
 				argumentSet("Reactor Netty", new ReactorClientHttpConnector()),
-				argumentSet("Reactor Netty 2", new ReactorNetty2ClientHttpConnector()),
 				argumentSet("JDK", new JdkClientHttpConnector()),
 				argumentSet("Jetty", new JettyClientHttpConnector()),
 				argumentSet("HttpComponents", new HttpComponentsClientHttpConnector())
@@ -120,8 +120,9 @@ class WebClientIntegrationTests {
 	private WebClient webClient;
 
 
-	private void startServer(ClientHttpConnector connector) {
+	private void startServer(ClientHttpConnector connector) throws IOException {
 		this.server = new MockWebServer();
+		this.server.start();
 		this.webClient = WebClient
 				.builder()
 				.clientConnector(connector)
@@ -130,19 +131,20 @@ class WebClientIntegrationTests {
 	}
 
 	@AfterEach
-	void shutdown() throws IOException {
+	void shutdown() {
 		if (server != null) {
-			this.server.shutdown();
+			this.server.close();
 		}
 	}
 
 
 	@ParameterizedWebClientTest
-	void retrieve(ClientHttpConnector connector) {
+	void retrieve(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
-		prepareResponse(response ->
-				response.setHeader("Content-Type", "text/plain").setBody("Hello Spring!"));
+		prepareResponse(builder -> builder
+				.setHeader("Content-Type", "text/plain")
+				.body("Hello Spring!"));
 
 		Mono<String> result = this.webClient.get()
 				.uri("/greeting")
@@ -158,20 +160,20 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getHeader(HttpHeaders.COOKIE)).isEqualTo("testkey=testvalue");
-			assertThat(request.getHeader("X-Test-Header")).isEqualTo("testvalue");
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("*/*");
-			assertThat(request.getPath()).isEqualTo("/greeting");
+			assertThat(request.getHeaders().get(HttpHeaders.COOKIE)).isEqualTo("testkey=testvalue");
+			assertThat(request.getHeaders().get("X-Test-Header")).isEqualTo("testvalue");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("*/*");
+			assertThat(request.getTarget()).isEqualTo("/greeting");
 		});
 	}
 
 	@ParameterizedWebClientTest
-	void retrieveJson(ClientHttpConnector connector) {
+	void retrieveJson(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
-		prepareResponse(response -> response
+		prepareResponse(builder -> builder
 				.setHeader("Content-Type", "application/json")
-				.setBody("{\"bar\":\"barbar\",\"foo\":\"foofoo\"}"));
+				.body("{\"bar\":\"barbar\",\"foo\":\"foofoo\"}"));
 
 		Mono<Pojo> result = this.webClient.get()
 				.uri("/pojo")
@@ -186,15 +188,15 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getPath()).isEqualTo("/pojo");
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("application/json");
+			assertThat(request.getTarget()).isEqualTo("/pojo");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("application/json");
 		});
 	}
 
 	@ParameterizedWebClientTest
-	void applyAttributesToNativeRequest(ClientHttpConnector connector) {
+	void applyAttributesToNativeRequest(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
-		prepareResponse(response -> {});
+		prepareResponse(Function.identity());
 
 		final AtomicReference<Object> nativeRequest = new AtomicReference<>();
 		Mono<Void> result = this.webClient.get()
@@ -203,9 +205,6 @@ class WebClientIntegrationTests {
 				.httpRequest(clientHttpRequest -> {
 					if (clientHttpRequest instanceof ChannelOperations<?,?> nettyReq) {
 						nativeRequest.set(nettyReq.channel().attr(ReactorClientHttpConnector.ATTRIBUTES_KEY));
-					}
-					else if (clientHttpRequest instanceof reactor.netty5.channel.ChannelOperations<?,?> nettyReq) {
-						nativeRequest.set(nettyReq.channel().attr(ReactorNetty2ClientHttpConnector.ATTRIBUTES_KEY));
 					}
 					else {
 						nativeRequest.set(clientHttpRequest.getNativeRequest());
@@ -222,13 +221,6 @@ class WebClientIntegrationTests {
 			assertThat(attributes.get()).isNotNull();
 			assertThat(attributes.get()).containsEntry("foo", "bar");
 		}
-		else if (nativeRequest.get() instanceof io.netty5.util.Attribute<?>) {
-			@SuppressWarnings("unchecked")
-			io.netty5.util.Attribute<Map<String, Object>> attributes =
-					(io.netty5.util.Attribute<Map<String, Object>>) nativeRequest.get();
-			assertThat(attributes.get()).isNotNull();
-			assertThat(attributes.get()).containsEntry("foo", "bar");
-		}
 		else if (nativeRequest.get() instanceof Request nativeReq) {
 			assertThat(nativeReq.getAttributes()).containsEntry("foo", "bar");
 		}
@@ -239,12 +231,13 @@ class WebClientIntegrationTests {
 
 
 	@ParameterizedWebClientTest
-	void retrieveJsonWithParameterizedTypeReference(ClientHttpConnector connector) {
+	void retrieveJsonWithParameterizedTypeReference(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
 		String content = "{\"containerValue\":{\"bar\":\"barbar\",\"foo\":\"foofoo\"}}";
-		prepareResponse(response -> response
-				.setHeader("Content-Type", "application/json").setBody(content));
+		prepareResponse(builder -> builder
+				.setHeader("Content-Type", "application/json")
+				.body(content));
 
 		Mono<ValueContainer<Pojo>> result = this.webClient.get()
 				.uri("/json").accept(MediaType.APPLICATION_JSON)
@@ -257,18 +250,19 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getPath()).isEqualTo("/json");
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("application/json");
+			assertThat(request.getTarget()).isEqualTo("/json");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("application/json");
 		});
 	}
 
 	@ParameterizedWebClientTest
-	void retrieveJsonAsResponseEntity(ClientHttpConnector connector) {
+	void retrieveJsonAsResponseEntity(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
 		String content = "{\"bar\":\"barbar\",\"foo\":\"foofoo\"}";
-		prepareResponse(response -> response
-				.setHeader("Content-Type", "application/json").setBody(content));
+		prepareResponse(builder -> builder
+				.setHeader("Content-Type", "application/json")
+				.body(content));
 
 		Mono<ResponseEntity<String>> result = this.webClient.get()
 				.uri("/json").accept(MediaType.APPLICATION_JSON)
@@ -286,17 +280,18 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getPath()).isEqualTo("/json");
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("application/json");
+			assertThat(request.getTarget()).isEqualTo("/json");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("application/json");
 		});
 	}
 
 	@ParameterizedWebClientTest
-	void retrieveJsonAsBodilessEntity(ClientHttpConnector connector) {
+	void retrieveJsonAsBodilessEntity(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
-		prepareResponse(response -> response
-				.setHeader("Content-Type", "application/json").setBody("{\"bar\":\"barbar\",\"foo\":\"foofoo\"}"));
+		prepareResponse(builder -> builder
+				.setHeader("Content-Type", "application/json")
+				.body("{\"bar\":\"barbar\",\"foo\":\"foofoo\"}"));
 
 		Mono<ResponseEntity<Void>> result = this.webClient.get()
 				.uri("/json").accept(MediaType.APPLICATION_JSON)
@@ -314,18 +309,18 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getPath()).isEqualTo("/json");
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("application/json");
+			assertThat(request.getTarget()).isEqualTo("/json");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("application/json");
 		});
 	}
 
 	@ParameterizedWebClientTest
-	void retrieveJsonArray(ClientHttpConnector connector) {
+	void retrieveJsonArray(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
-		prepareResponse(response -> response
+		prepareResponse(builder -> builder
 				.setHeader("Content-Type", "application/json")
-				.setBody("[{\"bar\":\"bar1\",\"foo\":\"foo1\"},{\"bar\":\"bar2\",\"foo\":\"foo2\"}]"));
+				.body("[{\"bar\":\"bar1\",\"foo\":\"foo1\"},{\"bar\":\"bar2\",\"foo\":\"foo2\"}]"));
 
 		Flux<Pojo> result = this.webClient.get()
 				.uri("/pojos")
@@ -341,18 +336,19 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getPath()).isEqualTo("/pojos");
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("application/json");
+			assertThat(request.getTarget()).isEqualTo("/pojos");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("application/json");
 		});
 	}
 
 	@ParameterizedWebClientTest
-	void retrieveJsonArrayAsResponseEntityList(ClientHttpConnector connector) {
+	void retrieveJsonArrayAsResponseEntityList(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
 		String content = "[{\"bar\":\"bar1\",\"foo\":\"foo1\"}, {\"bar\":\"bar2\",\"foo\":\"foo2\"}]";
-		prepareResponse(response -> response
-				.setHeader("Content-Type", "application/json").setBody(content));
+		prepareResponse(builder -> builder
+				.setHeader("Content-Type", "application/json")
+				.body(content));
 
 		Mono<ResponseEntity<List<Pojo>>> result = this.webClient.get()
 				.uri("/json").accept(MediaType.APPLICATION_JSON)
@@ -372,18 +368,19 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getPath()).isEqualTo("/json");
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("application/json");
+			assertThat(request.getTarget()).isEqualTo("/json");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("application/json");
 		});
 	}
 
 	@ParameterizedWebClientTest
-	void retrieveJsonArrayAsResponseEntityFlux(ClientHttpConnector connector) {
+	void retrieveJsonArrayAsResponseEntityFlux(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
 		String content = "[{\"bar\":\"bar1\",\"foo\":\"foo1\"}, {\"bar\":\"bar2\",\"foo\":\"foo2\"}]";
-		prepareResponse(response -> response
-				.setHeader("Content-Type", "application/json").setBody(content));
+		prepareResponse(builder -> builder
+				.setHeader("Content-Type", "application/json")
+				.body(content));
 
 		ResponseEntity<Flux<Pojo>> entity = this.webClient.get()
 				.uri("/json").accept(MediaType.APPLICATION_JSON)
@@ -405,18 +402,19 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getPath()).isEqualTo("/json");
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("application/json");
+			assertThat(request.getTarget()).isEqualTo("/json");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("application/json");
 		});
 	}
 
 	@ParameterizedWebClientTest
-	void retrieveJsonArrayAsResponseEntityFluxWithBodyExtractor(ClientHttpConnector connector) {
+	void retrieveJsonArrayAsResponseEntityFluxWithBodyExtractor(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
 		String content = "[{\"bar\":\"bar1\",\"foo\":\"foo1\"}, {\"bar\":\"bar2\",\"foo\":\"foo2\"}]";
-		prepareResponse(response -> response
-				.setHeader("Content-Type", "application/json").setBody(content));
+		prepareResponse(builder -> builder
+				.setHeader("Content-Type", "application/json")
+				.body(content));
 
 		ResponseEntity<Flux<Pojo>> entity = this.webClient.get()
 				.uri("/json").accept(MediaType.APPLICATION_JSON)
@@ -438,13 +436,13 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getPath()).isEqualTo("/json");
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("application/json");
+			assertThat(request.getTarget()).isEqualTo("/json");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("application/json");
 		});
 	}
 
-	@Test // gh-24788
-	void retrieveJsonArrayAsBodilessEntityShouldReleasesConnection() {
+	@Test  // gh-24788
+	void retrieveJsonArrayAsBodilessEntityShouldReleaseConnection() throws IOException {
 
 		// Constrain connection pool and make consecutive requests.
 		// 2nd request should hang if response was not drained.
@@ -452,6 +450,7 @@ class WebClientIntegrationTests {
 		ConnectionProvider connectionProvider = ConnectionProvider.create("test", 1);
 
 		this.server = new MockWebServer();
+		this.server.start();
 		WebClient webClient = WebClient
 				.builder()
 				.clientConnector(new ReactorClientHttpConnector(HttpClient.create(connectionProvider)))
@@ -467,9 +466,9 @@ class WebClientIntegrationTests {
 					.collect(Collectors.joining(",", "[", "]"))
 					.block();
 
-			prepareResponse(response -> response
+			prepareResponse(builder -> builder
 					.setHeader("Content-Type", "application/json")
-					.setBody(json));
+					.body(json));
 
 			Mono<ResponseEntity<Void>> result = webClient.get()
 					.uri("/json").accept(MediaType.APPLICATION_JSON)
@@ -488,19 +487,20 @@ class WebClientIntegrationTests {
 
 			expectRequestCount(i);
 			expectRequest(request -> {
-				assertThat(request.getPath()).isEqualTo("/json");
-				assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("application/json");
+				assertThat(request.getTarget()).isEqualTo("/json");
+				assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("application/json");
 			});
 		}
 	}
 
 	@ParameterizedWebClientTest
-	void retrieveJsonAsSerializedText(ClientHttpConnector connector) {
+	void retrieveJsonAsSerializedText(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
 		String content = "{\"bar\":\"barbar\",\"foo\":\"foofoo\"}";
-		prepareResponse(response -> response
-				.setHeader("Content-Type", "application/json").setBody(content));
+		prepareResponse(builder -> builder
+				.setHeader("Content-Type", "application/json")
+				.body(content));
 
 		Mono<String> result = this.webClient.get()
 				.uri("/json").accept(MediaType.APPLICATION_JSON)
@@ -513,20 +513,20 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getPath()).isEqualTo("/json");
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("application/json");
+			assertThat(request.getTarget()).isEqualTo("/json");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("application/json");
 		});
 	}
 
 	@ParameterizedWebClientTest
 	@SuppressWarnings("rawtypes")
-	void retrieveJsonNull(ClientHttpConnector connector) {
+	void retrieveJsonNull(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
-		prepareResponse(response -> response
-				.setResponseCode(200)
+		prepareResponse(builder -> builder
+				.code(200)
 				.setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-				.setBody("null"));
+				.body("null"));
 
 		Mono<Map> result = this.webClient.get()
 				.uri("/null")
@@ -537,10 +537,11 @@ class WebClientIntegrationTests {
 	}
 
 	@ParameterizedWebClientTest  // SPR-15946
-	void retrieve404(ClientHttpConnector connector) {
+	void retrieve404(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
-		prepareResponse(response -> response.setResponseCode(404)
+		prepareResponse(builder -> builder
+				.code(404)
 				.setHeader("Content-Type", "text/plain"));
 
 		Mono<String> result = this.webClient.get().uri("/greeting")
@@ -553,17 +554,19 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("*/*");
-			assertThat(request.getPath()).isEqualTo("/greeting");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("*/*");
+			assertThat(request.getTarget()).isEqualTo("/greeting");
 		});
 	}
 
 	@ParameterizedWebClientTest
-	void retrieve404WithBody(ClientHttpConnector connector) {
+	void retrieve404WithBody(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
-		prepareResponse(response -> response.setResponseCode(404)
-				.setHeader("Content-Type", "text/plain").setBody("Not Found"));
+		prepareResponse(builder -> builder
+				.code(404)
+				.setHeader("Content-Type", "text/plain")
+				.body("Not Found"));
 
 		Mono<String> result = this.webClient.get()
 				.uri("/greeting")
@@ -576,19 +579,19 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("*/*");
-			assertThat(request.getPath()).isEqualTo("/greeting");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("*/*");
+			assertThat(request.getTarget()).isEqualTo("/greeting");
 		});
 	}
 
 	@ParameterizedWebClientTest
 	@SuppressWarnings("deprecation")
-	void retrieve500(ClientHttpConnector connector) {
+	void retrieve500(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
 		String errorMessage = "Internal Server error";
-		prepareResponse(response -> response.setResponseCode(500)
-				.setHeader("Content-Type", "text/plain").setBody(errorMessage));
+		prepareResponse(builder -> builder.code(500)
+				.setHeader("Content-Type", "text/plain").body(errorMessage));
 
 		String path = "/greeting";
 		Mono<String> result = this.webClient.get()
@@ -601,7 +604,6 @@ class WebClientIntegrationTests {
 					assertThat(throwable).isInstanceOf(WebClientResponseException.class);
 					WebClientResponseException ex = (WebClientResponseException) throwable;
 					assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
-					assertThat(ex.getRawStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR.value());
 					assertThat(ex.getStatusText()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase());
 					assertThat(ex.getHeaders().getContentType()).isEqualTo(MediaType.TEXT_PLAIN);
 					assertThat(ex.getResponseBodyAsString()).isEqualTo(errorMessage);
@@ -615,17 +617,17 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("*/*");
-			assertThat(request.getPath()).isEqualTo(path);
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("*/*");
+			assertThat(request.getTarget()).isEqualTo(path);
 		});
 	}
 
 	@ParameterizedWebClientTest
-	void retrieve500AsEntity(ClientHttpConnector connector) {
+	void retrieve500AsEntity(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
-		prepareResponse(response -> response.setResponseCode(500)
-				.setHeader("Content-Type", "text/plain").setBody("Internal Server error"));
+		prepareResponse(builder -> builder.code(500)
+				.setHeader("Content-Type", "text/plain").body("Internal Server error"));
 
 		Mono<ResponseEntity<String>> result = this.webClient.get()
 				.uri("/").accept(MediaType.APPLICATION_JSON)
@@ -638,17 +640,17 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getPath()).isEqualTo("/");
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("application/json");
+			assertThat(request.getTarget()).isEqualTo("/");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("application/json");
 		});
 	}
 
 	@ParameterizedWebClientTest
-	void retrieve500AsEntityList(ClientHttpConnector connector) {
+	void retrieve500AsEntityList(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
-		prepareResponse(response -> response.setResponseCode(500)
-				.setHeader("Content-Type", "text/plain").setBody("Internal Server error"));
+		prepareResponse(builder -> builder.code(500)
+				.setHeader("Content-Type", "text/plain").body("Internal Server error"));
 
 		Mono<ResponseEntity<List<String>>> result = this.webClient.get()
 				.uri("/").accept(MediaType.APPLICATION_JSON)
@@ -661,17 +663,17 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getPath()).isEqualTo("/");
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("application/json");
+			assertThat(request.getTarget()).isEqualTo("/");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("application/json");
 		});
 	}
 
 	@ParameterizedWebClientTest
-	void retrieve500AsBodilessEntity(ClientHttpConnector connector) {
+	void retrieve500AsBodilessEntity(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
-		prepareResponse(response -> response.setResponseCode(500)
-				.setHeader("Content-Type", "text/plain").setBody("Internal Server error"));
+		prepareResponse(builder -> builder.code(500)
+				.setHeader("Content-Type", "text/plain").body("Internal Server error"));
 
 		Mono<ResponseEntity<Void>> result = this.webClient.get()
 				.uri("/").accept(MediaType.APPLICATION_JSON)
@@ -684,24 +686,24 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getPath()).isEqualTo("/");
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("application/json");
+			assertThat(request.getTarget()).isEqualTo("/");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("application/json");
 		});
 	}
 
 	@ParameterizedWebClientTest
 	@SuppressWarnings("deprecation")
-	void retrieve555UnknownStatus(ClientHttpConnector connector) {
+	void retrieve555UnknownStatus(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
 		int errorStatus = 555;
 		assertThat(HttpStatus.resolve(errorStatus)).isNull();
 
 		String errorMessage = "Something went wrong";
-		prepareResponse(response ->
-				response.setResponseCode(errorStatus)
-						.setHeader("Content-Type", "text/plain")
-						.setBody(errorMessage));
+		prepareResponse(builder -> builder
+				.code(errorStatus)
+				.setHeader("Content-Type", "text/plain")
+				.body(errorMessage));
 
 		Mono<String> result = this.webClient.get().uri("/unknownPage").retrieve().bodyToMono(String.class);
 
@@ -710,7 +712,6 @@ class WebClientIntegrationTests {
 					assertThat(throwable).isInstanceOf(UnknownHttpStatusCodeException.class);
 					UnknownHttpStatusCodeException ex = (UnknownHttpStatusCodeException) throwable;
 					assertThat(ex.getMessage()).isEqualTo(("Unknown status code ["+errorStatus+"]"));
-					assertThat(ex.getRawStatusCode()).isEqualTo(errorStatus);
 					assertThat(ex.getStatusText()).isEmpty();
 					assertThat(ex.getHeaders().getContentType()).isEqualTo(MediaType.TEXT_PLAIN);
 					assertThat(ex.getResponseBodyAsString()).isEqualTo(errorMessage);
@@ -719,23 +720,23 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("*/*");
-			assertThat(request.getPath()).isEqualTo("/unknownPage");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("*/*");
+			assertThat(request.getTarget()).isEqualTo("/unknownPage");
 		});
 	}
 
-	@ParameterizedWebClientTest // gh-31202
-	void retrieve929UnknownStatusCode(ClientHttpConnector connector) {
+	@ParameterizedWebClientTest  // gh-31202
+	void retrieve929UnknownStatusCode(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
 		int errorStatus = 929;
 		assertThat(HttpStatus.resolve(errorStatus)).isNull();
 
 		String errorMessage = "Something went wrong";
-		prepareResponse(response ->
-				response.setResponseCode(errorStatus)
+		prepareResponse(builder ->
+				builder.code(errorStatus)
 						.setHeader("Content-Type", "text/plain")
-						.setBody(errorMessage));
+						.body(errorMessage));
 
 		Mono<String> result = this.webClient.get().uri("/unknownPage").retrieve().bodyToMono(String.class);
 
@@ -753,17 +754,17 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("*/*");
-			assertThat(request.getPath()).isEqualTo("/unknownPage");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("*/*");
+			assertThat(request.getTarget()).isEqualTo("/unknownPage");
 		});
 	}
 
 	@ParameterizedWebClientTest
-	void postPojoAsJson(ClientHttpConnector connector) {
+	void postPojoAsJson(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
-		prepareResponse(response -> response.setHeader("Content-Type", "application/json")
-				.setBody("{\"bar\":\"BARBAR\",\"foo\":\"FOOFOO\"}"));
+		prepareResponse(builder -> builder.setHeader("Content-Type", "application/json")
+				.body("{\"bar\":\"BARBAR\",\"foo\":\"FOOFOO\"}"));
 
 		Mono<Pojo> result = this.webClient.post()
 				.uri("/pojo/capitalize")
@@ -780,19 +781,19 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getPath()).isEqualTo("/pojo/capitalize");
-			assertThat(request.getBody().readUtf8()).isEqualTo("{\"foo\":\"foofoo\",\"bar\":\"barbar\"}");
-			assertThat(request.getHeader(HttpHeaders.CONTENT_LENGTH)).isEqualTo("31");
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("application/json");
-			assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE)).isEqualTo("application/json");
+			assertThat(request.getTarget()).isEqualTo("/pojo/capitalize");
+			assertThat(request.getBody().utf8()).isEqualTo("{\"foo\":\"foofoo\",\"bar\":\"barbar\"}");
+			assertThat(request.getHeaders().get(HttpHeaders.CONTENT_LENGTH)).isEqualTo("31");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("application/json");
+			assertThat(request.getHeaders().get(HttpHeaders.CONTENT_TYPE)).isEqualTo("application/json");
 		});
 	}
 
 	@ParameterizedWebClientTest  // SPR-16246
-	void postLargeTextFile(ClientHttpConnector connector) {
+	void postLargeTextFile(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
-		prepareResponse(response -> {});
+		prepareResponse(Function.identity());
 
 		Resource resource = new ClassPathResource("largeTextFile.txt", getClass());
 		Flux<DataBuffer> body = DataBufferUtils.read(resource, DefaultDataBufferFactory.sharedInstance, 4096);
@@ -808,10 +809,8 @@ class WebClientIntegrationTests {
 				.verify(Duration.ofSeconds(5));
 
 		expectRequest(request -> {
-			ByteArrayOutputStream bos = new ByteArrayOutputStream();
 			try {
-				request.getBody().copyTo(bos);
-				String actual = bos.toString(StandardCharsets.UTF_8);
+				String actual = request.getBody().utf8();
 				String expected = Files.readString(resource.getFile().toPath(), StandardCharsets.UTF_8);
 				assertThat(actual).isEqualTo(expected);
 			}
@@ -822,11 +821,11 @@ class WebClientIntegrationTests {
 	}
 
 	@ParameterizedWebClientTest
-	void statusHandler(ClientHttpConnector connector) {
+	void statusHandler(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
-		prepareResponse(response -> response.setResponseCode(500)
-				.setHeader("Content-Type", "text/plain").setBody("Internal Server error"));
+		prepareResponse(builder -> builder.code(500)
+				.setHeader("Content-Type", "text/plain").body("Internal Server error"));
 
 		Mono<String> result = this.webClient.get()
 				.uri("/greeting")
@@ -840,17 +839,17 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("*/*");
-			assertThat(request.getPath()).isEqualTo("/greeting");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("*/*");
+			assertThat(request.getTarget()).isEqualTo("/greeting");
 		});
 	}
 
 	@ParameterizedWebClientTest
-	void statusHandlerParameterizedTypeReference(ClientHttpConnector connector) {
+	void statusHandlerParameterizedTypeReference(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
-		prepareResponse(response -> response.setResponseCode(500)
-				.setHeader("Content-Type", "text/plain").setBody("Internal Server error"));
+		prepareResponse(builder -> builder.code(500)
+				.setHeader("Content-Type", "text/plain").body("Internal Server error"));
 
 		Mono<String> result = this.webClient.get()
 				.uri("/greeting")
@@ -864,19 +863,19 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("*/*");
-			assertThat(request.getPath()).isEqualTo("/greeting");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("*/*");
+			assertThat(request.getTarget()).isEqualTo("/greeting");
 		});
 	}
 
 	@ParameterizedWebClientTest
-	void statusHandlerWithErrorBodyTransformation(ClientHttpConnector connector) {
+	void statusHandlerWithErrorBodyTransformation(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
-		prepareResponse(response -> response
-				.setResponseCode(500)
+		prepareResponse(builder -> builder
+				.code(500)
 				.setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-				.setBody("{\"bar\":\"barbar\",\"foo\":\"foofoo\"}")
+				.body("{\"bar\":\"barbar\",\"foo\":\"foofoo\"}")
 		);
 
 		Mono<String> result = this.webClient.get()
@@ -898,11 +897,12 @@ class WebClientIntegrationTests {
 	}
 
 	@ParameterizedWebClientTest
-	void statusHandlerRawStatus(ClientHttpConnector connector) {
+	void statusHandlerRawStatus(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
-		prepareResponse(response -> response.setResponseCode(500)
-				.setHeader("Content-Type", "text/plain").setBody("Internal Server error"));
+		prepareResponse(builder -> builder.code(500)
+				.setHeader("Content-Type", "text/plain").body("Internal Server error")
+		);
 
 		Mono<String> result = this.webClient.get()
 				.uri("/greeting")
@@ -916,17 +916,17 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("*/*");
-			assertThat(request.getPath()).isEqualTo("/greeting");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("*/*");
+			assertThat(request.getTarget()).isEqualTo("/greeting");
 		});
 	}
 
 	@ParameterizedWebClientTest
-	void statusHandlerSuppressedErrorSignal(ClientHttpConnector connector) {
+	void statusHandlerSuppressedErrorSignal(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
-		prepareResponse(response -> response.setResponseCode(500)
-				.setHeader("Content-Type", "text/plain").setBody("Internal Server error"));
+		prepareResponse(builder -> builder.code(500)
+				.setHeader("Content-Type", "text/plain").body("Internal Server error"));
 
 		Mono<String> result = this.webClient.get()
 				.uri("/greeting")
@@ -940,23 +940,18 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("*/*");
-			assertThat(request.getPath()).isEqualTo("/greeting");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("*/*");
+			assertThat(request.getTarget()).isEqualTo("/greeting");
 		});
 	}
 
 	@ParameterizedWebClientTest
-	void statusHandlerSuppressedErrorSignalWithFlux(ClientHttpConnector connector) {
-
-		// Temporarily disabled, leads to io.netty5.buffer.BufferClosedException
-		if (connector instanceof ReactorNetty2ClientHttpConnector) {
-			return;
-		}
+	void statusHandlerSuppressedErrorSignalWithFlux(ClientHttpConnector connector) throws IOException {
 
 		startServer(connector);
 
-		prepareResponse(response -> response.setResponseCode(500)
-				.setHeader("Content-Type", "text/plain").setBody("Internal Server error"));
+		prepareResponse(builder -> builder.code(500)
+				.setHeader("Content-Type", "text/plain").body("Internal Server error"));
 
 		Flux<String> result = this.webClient.get()
 				.uri("/greeting")
@@ -970,18 +965,18 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("*/*");
-			assertThat(request.getPath()).isEqualTo("/greeting");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("*/*");
+			assertThat(request.getTarget()).isEqualTo("/greeting");
 		});
 	}
 
 	@ParameterizedWebClientTest
-	void statusHandlerSuppressedErrorSignalWithEntity(ClientHttpConnector connector) {
+	void statusHandlerSuppressedErrorSignalWithEntity(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
 		String content = "Internal Server error";
-		prepareResponse(response -> response.setResponseCode(500)
-				.setHeader("Content-Type", "text/plain").setBody(content));
+		prepareResponse(builder -> builder.code(500)
+				.setHeader("Content-Type", "text/plain").body(content));
 
 		Mono<ResponseEntity<String>> result = this.webClient.get()
 				.uri("/").accept(MediaType.APPLICATION_JSON)
@@ -999,16 +994,16 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getPath()).isEqualTo("/");
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("application/json");
+			assertThat(request.getTarget()).isEqualTo("/");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("application/json");
 		});
 	}
 
 	@ParameterizedWebClientTest
-	void exchangeForPlainText(ClientHttpConnector connector) {
+	void exchangeForPlainText(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
-		prepareResponse(response -> response.setBody("Hello Spring!"));
+		prepareResponse(builder -> builder.body("Hello Spring!"));
 
 		Mono<String> result = this.webClient.get()
 				.uri("/greeting")
@@ -1021,19 +1016,19 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getHeader("X-Test-Header")).isEqualTo("testvalue");
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("*/*");
-			assertThat(request.getPath()).isEqualTo("/greeting");
+			assertThat(request.getHeaders().get("X-Test-Header")).isEqualTo("testvalue");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("*/*");
+			assertThat(request.getTarget()).isEqualTo("/greeting");
 		});
 	}
 
 	@ParameterizedWebClientTest
-	void exchangeForJsonAsResponseEntity(ClientHttpConnector connector) {
+	void exchangeForJsonAsResponseEntity(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
 		String content = "{\"bar\":\"barbar\",\"foo\":\"foofoo\"}";
-		prepareResponse(response -> response
-				.setHeader("Content-Type", "application/json").setBody(content));
+		prepareResponse(builder -> builder
+				.setHeader("Content-Type", "application/json").body(content));
 
 		Mono<ResponseEntity<Pojo>> result = this.webClient.get()
 				.uri("/json").accept(MediaType.APPLICATION_JSON)
@@ -1050,17 +1045,17 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getPath()).isEqualTo("/json");
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("application/json");
+			assertThat(request.getTarget()).isEqualTo("/json");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("application/json");
 		});
 	}
 
 	@ParameterizedWebClientTest
-	void exchangeForJsonAsBodilessEntity(ClientHttpConnector connector) {
+	void exchangeForJsonAsBodilessEntity(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
-		prepareResponse(response -> response
-				.setHeader("Content-Type", "application/json").setBody("{\"bar\":\"barbar\",\"foo\":\"foofoo\"}"));
+		prepareResponse(builder -> builder
+				.setHeader("Content-Type", "application/json").body("{\"bar\":\"barbar\",\"foo\":\"foofoo\"}"));
 
 		Mono<ResponseEntity<Void>> result = this.webClient.get()
 				.uri("/json").accept(MediaType.APPLICATION_JSON)
@@ -1077,18 +1072,18 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getPath()).isEqualTo("/json");
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("application/json");
+			assertThat(request.getTarget()).isEqualTo("/json");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("application/json");
 		});
 	}
 
 	@ParameterizedWebClientTest
-	void exchangeForJsonArrayAsResponseEntity(ClientHttpConnector connector) {
+	void exchangeForJsonArrayAsResponseEntity(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
 		String content = "[{\"bar\":\"bar1\",\"foo\":\"foo1\"}, {\"bar\":\"bar2\",\"foo\":\"foo2\"}]";
-		prepareResponse(response -> response
-				.setHeader("Content-Type", "application/json").setBody(content));
+		prepareResponse(builder -> builder
+				.setHeader("Content-Type", "application/json").body(content));
 
 		Mono<ResponseEntity<List<Pojo>>> result = this.webClient.get()
 				.uri("/json").accept(MediaType.APPLICATION_JSON)
@@ -1107,16 +1102,16 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getPath()).isEqualTo("/json");
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("application/json");
+			assertThat(request.getTarget()).isEqualTo("/json");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("application/json");
 		});
 	}
 
 	@ParameterizedWebClientTest
-	void exchangeForEmptyBodyAsVoidEntity(ClientHttpConnector connector) {
+	void exchangeForEmptyBodyAsVoidEntity(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
-		prepareResponse(response -> response.setHeader("Content-Length", "0").setBody(""));
+		prepareResponse(builder -> builder.addHeader("Content-Length", "0").body(""));
 
 		Mono<ResponseEntity<Void>> result = this.webClient.get()
 				.uri("/noContent")
@@ -1128,11 +1123,11 @@ class WebClientIntegrationTests {
 	}
 
 	@ParameterizedWebClientTest
-	void exchangeFor404(ClientHttpConnector connector) {
+	void exchangeFor404(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
-		prepareResponse(response -> response.setResponseCode(404)
-				.setHeader("Content-Type", "text/plain").setBody("Not Found"));
+		prepareResponse(builder -> builder.code(404)
+				.setHeader("Content-Type", "text/plain").body("Not Found"));
 
 		Mono<ResponseEntity<Void>> result = this.webClient.get().uri("/greeting")
 				.exchangeToMono(ClientResponse::toBodilessEntity);
@@ -1144,44 +1139,43 @@ class WebClientIntegrationTests {
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("*/*");
-			assertThat(request.getPath()).isEqualTo("/greeting");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("*/*");
+			assertThat(request.getTarget()).isEqualTo("/greeting");
 		});
 	}
 
 	@ParameterizedWebClientTest
-	@SuppressWarnings("deprecation")
-	void exchangeForUnknownStatusCode(ClientHttpConnector connector) {
+	void exchangeForUnknownStatusCode(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
 		int errorStatus = 555;
 		assertThat(HttpStatus.resolve(errorStatus)).isNull();
 		String errorMessage = "Something went wrong";
-		prepareResponse(response -> response.setResponseCode(errorStatus)
-				.setHeader("Content-Type", "text/plain").setBody(errorMessage));
+		prepareResponse(builder -> builder.code(errorStatus)
+				.setHeader("Content-Type", "text/plain").body(errorMessage));
 
 		Mono<ResponseEntity<Void>> result = this.webClient.get()
 				.uri("/unknownPage")
 				.exchangeToMono(ClientResponse::toBodilessEntity);
 
 		StepVerifier.create(result)
-				.consumeNextWith(entity -> assertThat(entity.getStatusCodeValue()).isEqualTo(555))
+				.consumeNextWith(entity -> assertThat(entity.getStatusCode().value()).isEqualTo(555))
 				.expectComplete()
 				.verify(Duration.ofSeconds(3));
 
 		expectRequestCount(1);
 		expectRequest(request -> {
-			assertThat(request.getHeader(HttpHeaders.ACCEPT)).isEqualTo("*/*");
-			assertThat(request.getPath()).isEqualTo("/unknownPage");
+			assertThat(request.getHeaders().get(HttpHeaders.ACCEPT)).isEqualTo("*/*");
+			assertThat(request.getTarget()).isEqualTo("/unknownPage");
 		});
 	}
 
 	@ParameterizedWebClientTest
-	void filter(ClientHttpConnector connector) {
+	void filter(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
-		prepareResponse(response -> response.setHeader("Content-Type", "text/plain")
-				.setBody("Hello Spring!"));
+		prepareResponse(builder -> builder.setHeader("Content-Type", "text/plain")
+				.body("Hello Spring!"));
 
 		WebClient filteredClient = this.webClient.mutate()
 				.filter((request, next) -> {
@@ -1202,11 +1196,11 @@ class WebClientIntegrationTests {
 				.verify(Duration.ofSeconds(3));
 
 		expectRequestCount(1);
-		expectRequest(request -> assertThat(request.getHeader("foo")).isEqualTo("bar"));
+		expectRequest(request -> assertThat(request.getHeaders().get("foo")).isEqualTo("bar"));
 	}
 
 	@ParameterizedWebClientTest
-	void filterForErrorHandling(ClientHttpConnector connector) {
+	void filterForErrorHandling(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
 		ExchangeFilterFunction filter = ExchangeFilterFunction.ofResponseProcessor(
@@ -1221,8 +1215,9 @@ class WebClientIntegrationTests {
 		WebClient filteredClient = this.webClient.mutate().filter(filter).build();
 
 		// header not present
-		prepareResponse(response -> response
-				.setHeader("Content-Type", "text/plain").setBody("Hello Spring!"));
+		prepareResponse(builder -> builder
+				.setHeader("Content-Type", "text/plain")
+				.body("Hello Spring!"));
 
 		Mono<String> result = filteredClient.get()
 				.uri("/greeting")
@@ -1234,9 +1229,9 @@ class WebClientIntegrationTests {
 
 		// header present
 
-		prepareResponse(response -> response.setHeader("Content-Type", "text/plain")
+		prepareResponse(builder -> builder.setHeader("Content-Type", "text/plain")
 				.setHeader("Foo", "Bar")
-				.setBody("Hello Spring!"));
+				.body("Hello Spring!"));
 
 		result = filteredClient.get()
 				.uri("/greeting")
@@ -1250,14 +1245,14 @@ class WebClientIntegrationTests {
 	}
 
 	@ParameterizedWebClientTest
-	void exchangeResponseCookies(ClientHttpConnector connector) {
+	void exchangeResponseCookies(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
-		prepareResponse(response -> response
+		prepareResponse(builder -> builder
 				.setHeader("Content-Type", "text/plain")
 				.addHeader("Set-Cookie", "testkey1=testvalue1") // TODO invalid ";" at the end
 				.addHeader("Set-Cookie", "testkey2=testvalue2; Max-Age=42; HttpOnly; SameSite=Lax; Secure")
-				.setBody("test"));
+				.body("test"));
 
 		this.webClient.get()
 				.uri("/test")
@@ -1309,12 +1304,12 @@ class WebClientIntegrationTests {
 	}
 
 	@ParameterizedWebClientTest
-	void retrieveTextDecodedToFlux(ClientHttpConnector connector) {
+	void retrieveTextDecodedToFlux(ClientHttpConnector connector) throws IOException {
 		startServer(connector);
 
-		prepareResponse(response -> response
-				.setHeader("Content-Type", "text/plain")
-				.setBody("Hey now"));
+		prepareResponse(builder -> builder
+				.addHeader("Content-Type", "text/plain")
+				.body("Hey now"));
 
 		Flux<String> result = this.webClient.get()
 				.uri("/")
@@ -1326,6 +1321,29 @@ class WebClientIntegrationTests {
 				.expectNext("Hey now")
 				.expectComplete()
 				.verify(Duration.ofSeconds(3));
+	}
+
+	@Disabled("Disabled because it's flaky (gh-36589)")
+	@Test  // gh-36158
+	void reactorNettyAttributes() throws IOException {
+		startServer(new ReactorClientHttpConnector());
+
+		prepareResponse(builder ->
+				builder.setHeader("Content-Type", "text/plain").body("Hello Spring!"));
+
+		AtomicReference<Channel> channelRef = new AtomicReference<>();
+
+		Mono<String> result = this.webClient.get().uri("/greeting")
+				.httpRequest(request -> {
+					HttpClientRequest reactorRequest = request.getNativeRequest();
+					channelRef.set(((ChannelOperations<?, ?>) reactorRequest).channel());
+				})
+				.retrieve()
+				.bodyToMono(String.class);
+
+		StepVerifier.create(result).expectNext("Hello Spring!").expectComplete().verify(Duration.ofSeconds(3));
+
+		assertThat(channelRef.get().attr(ReactorClientHttpConnector.ATTRIBUTES_KEY).get()).isNull();
 	}
 
 	private <T> Mono<T> doMalformedChunkedResponseTest(
@@ -1370,10 +1388,9 @@ class WebClientIntegrationTests {
 		});
 	}
 
-	private void prepareResponse(Consumer<MockResponse> consumer) {
-		MockResponse response = new MockResponse();
-		consumer.accept(response);
-		this.server.enqueue(response);
+	private void prepareResponse(Function<MockResponse.Builder, MockResponse.Builder> f) {
+		MockResponse.Builder builder = new MockResponse.Builder();
+		this.server.enqueue(f.apply(builder).build());
 	}
 
 	private void expectRequest(Consumer<RecordedRequest> consumer) {

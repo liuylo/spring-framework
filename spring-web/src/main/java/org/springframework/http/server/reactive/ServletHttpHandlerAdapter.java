@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -173,7 +173,7 @@ public class ServletHttpHandlerAdapter implements Servlet {
 		}
 		catch (URISyntaxException ex) {
 			if (logger.isDebugEnabled()) {
-				logger.debug("Failed to get request  URL: " + ex.getMessage());
+				logger.debug("Failed to get request URL: " + ex.getMessage());
 			}
 			((HttpServletResponse) response).setStatus(400);
 			asyncContext.complete();
@@ -309,8 +309,7 @@ public class ServletHttpHandlerAdapter implements Servlet {
 			try {
 				listener.onTimeout(event);
 			}
-			catch (Exception ex) {
-				// Ignore
+			catch (Exception ignored) {
 			}
 		}
 
@@ -318,8 +317,7 @@ public class ServletHttpHandlerAdapter implements Servlet {
 			try {
 				listener.onError(event);
 			}
-			catch (Exception ex) {
-				// Ignore
+			catch (Exception ignored) {
 			}
 		}
 
@@ -327,8 +325,7 @@ public class ServletHttpHandlerAdapter implements Servlet {
 			try {
 				listener.onComplete(event);
 			}
-			catch (Exception ex) {
-				// Ignore
+			catch (Exception ignored) {
 			}
 		}
 

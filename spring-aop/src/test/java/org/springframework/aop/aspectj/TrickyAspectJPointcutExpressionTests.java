@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,14 +43,14 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 class TrickyAspectJPointcutExpressionTests {
 
 	@Test
-	void testManualProxyJavaWithUnconditionalPointcut() {
+	void manualProxyJavaWithUnconditionalPointcut() {
 		TestService target = new TestServiceImpl();
 		LogUserAdvice logAdvice = new LogUserAdvice();
 		testAdvice(new DefaultPointcutAdvisor(logAdvice), logAdvice, target, "TestServiceImpl");
 	}
 
 	@Test
-	void testManualProxyJavaWithStaticPointcut() {
+	void manualProxyJavaWithStaticPointcut() {
 		TestService target = new TestServiceImpl();
 		LogUserAdvice logAdvice = new LogUserAdvice();
 		AspectJExpressionPointcut pointcut = new AspectJExpressionPointcut();
@@ -59,7 +59,7 @@ class TrickyAspectJPointcutExpressionTests {
 	}
 
 	@Test
-	void testManualProxyJavaWithDynamicPointcut() {
+	void manualProxyJavaWithDynamicPointcut() {
 		TestService target = new TestServiceImpl();
 		LogUserAdvice logAdvice = new LogUserAdvice();
 		AspectJExpressionPointcut pointcut = new AspectJExpressionPointcut();
@@ -68,7 +68,7 @@ class TrickyAspectJPointcutExpressionTests {
 	}
 
 	@Test
-	void testManualProxyJavaWithDynamicPointcutAndProxyTargetClass() {
+	void manualProxyJavaWithDynamicPointcutAndProxyTargetClass() {
 		TestService target = new TestServiceImpl();
 		LogUserAdvice logAdvice = new LogUserAdvice();
 		AspectJExpressionPointcut pointcut = new AspectJExpressionPointcut();
@@ -77,7 +77,7 @@ class TrickyAspectJPointcutExpressionTests {
 	}
 
 	@Test
-	void testManualProxyJavaWithStaticPointcutAndTwoClassLoaders() throws Exception {
+	void manualProxyJavaWithStaticPointcutAndTwoClassLoaders() throws Exception {
 
 		LogUserAdvice logAdvice = new LogUserAdvice();
 		AspectJExpressionPointcut pointcut = new AspectJExpressionPointcut();

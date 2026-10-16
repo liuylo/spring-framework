@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.server.reactive.observation.ServerRequestObservationContext;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.validation.BeanPropertyBindingResult;
 import org.springframework.validation.method.MethodValidationException;
@@ -56,7 +57,7 @@ import org.springframework.web.testfixture.http.server.reactive.MockServerHttpRe
 import org.springframework.web.testfixture.server.MockServerWebExchange;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.BDDMockito.mock;
+import static org.mockito.Mockito.mock;
 
 /**
  * Tests for {@link ResponseEntityExceptionHandler}.
@@ -115,6 +116,39 @@ class ResponseEntityExceptionHandlerTests {
 	}
 
 	@Test
+	void serverErrorIsRecordedOnObservation() {
+		ServerRequestObservationContext context = observationContext();
+		ServerErrorException ex = new ServerErrorException("simulated failure", (Throwable) null);
+
+		testException(ex);
+		assertThat(context.getError()).isSameAs(ex);
+	}
+
+	@Test
+	void serverErrorResponseIsRecordedOnObservation() {
+		ServerRequestObservationContext context = observationContext();
+		ErrorResponseException ex = new ErrorResponseException(HttpStatus.SERVICE_UNAVAILABLE);
+
+		testException(ex);
+		assertThat(context.getError()).isSameAs(ex);
+	}
+
+	@Test
+	void clientErrorIsNotRecordedOnObservation() {
+		ServerRequestObservationContext context = observationContext();
+
+		testException(new ServerWebInputException(""));
+		testException(new ErrorResponseException(HttpStatus.CONFLICT));
+		assertThat(context.getError()).isNull();
+	}
+
+	@Test
+	void serverErrorWithoutObservation() {
+		testException(new ErrorResponseException(HttpStatus.SERVICE_UNAVAILABLE));
+		assertThat(ServerRequestObservationContext.findCurrent(this.exchange.getAttributes())).isEmpty();
+	}
+
+	@Test
 	void methodValidationException() {
 		MethodValidationException ex = new MethodValidationException(mock(MethodValidationResult.class));
 		ResponseEntity<?> entity = this.exceptionHandler.handleException(ex, this.exchange).block();
@@ -135,6 +169,7 @@ class ResponseEntityExceptionHandlerTests {
 	}
 
 	@Test
+	@SuppressWarnings("deprecation")
 	void handleResponseStatusException() {
 		testException(new ResponseStatusException(HttpStatus.BANDWIDTH_LIMIT_EXCEEDED));
 	}
@@ -200,6 +235,13 @@ class ResponseEntityExceptionHandlerTests {
 		assertThat(body.getDetail()).isEqualTo("Invalid state: A");
 	}
 
+
+	private ServerRequestObservationContext observationContext() {
+		ServerRequestObservationContext context = new ServerRequestObservationContext(
+				this.exchange.getRequest(), this.exchange.getResponse(), this.exchange.getAttributes());
+		this.exchange.getAttributes().put(ServerRequestObservationContext.CURRENT_OBSERVATION_CONTEXT_ATTRIBUTE, context);
+		return context;
+	}
 
 	@SuppressWarnings("unchecked")
 	private ResponseEntity<ProblemDetail> testException(ErrorResponseException exception) {

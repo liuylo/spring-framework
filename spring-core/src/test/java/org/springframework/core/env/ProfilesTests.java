@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -155,7 +155,7 @@ class ProfilesTests {
 
 	@Test
 	void ofAndExpressionWithoutSpaces() {
-		Profiles profiles = Profiles.of("spring&framework)");
+		Profiles profiles = Profiles.of("(spring&framework)");
 		assertAndExpression(profiles);
 	}
 
@@ -290,6 +290,15 @@ class ProfilesTests {
 		assertMalformed(() -> Profiles.of("("));
 		assertMalformed(() -> Profiles.of(")"));
 		assertMalformed(() -> Profiles.of("a & b | c"));
+	}
+
+	@Test
+	void malformedExpressionsWithUnbalancedParentheses() {
+		assertMalformed(() -> Profiles.of("dev)"));
+		assertMalformed(() -> Profiles.of("(dev"));
+		assertMalformed(() -> Profiles.of("spring&framework)"));
+		assertMalformed(() -> Profiles.of("((dev)"));
+		assertMalformed(() -> Profiles.of("(dev))"));
 	}
 
 	@Test

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,10 +36,10 @@ import org.springframework.web.socket.WebSocketSession;
  * Wrap a {@link org.springframework.web.socket.WebSocketSession WebSocketSession}
  * to guarantee only one thread can send messages at a time.
  *
- * <p>If a send is slow, subsequent attempts to send more messages from other threads
- * will not be able to acquire the flush lock and messages will be buffered instead.
- * At that time, the specified buffer-size limit and send-time limit will be checked
- * and the session will be closed if the limits are exceeded.
+ * <p>If a {@code send} is slow, subsequent attempts to send more messages from
+ * other threads will not be able to acquire the flush lock, and messages will be
+ * buffered instead. At that time, the specified buffer-size limit and send-time
+ * limit will be checked, and the session will be closed if the limits are exceeded.
  *
  * @author Rossen Stoyanchev
  * @author Juergen Hoeller
@@ -90,7 +90,7 @@ public class ConcurrentWebSocketSessionDecorator extends WebSocketSessionDecorat
 	 * @param sendTimeLimit the send-time limit (milliseconds)
 	 * @param bufferSizeLimit the buffer-size limit (number of bytes)
 	 * @param overflowStrategy the overflow strategy to use; by default the
-	 * session is terminated.
+	 * session is terminated
 	 * @since 5.1
 	 */
 	public ConcurrentWebSocketSessionDecorator(
@@ -117,6 +117,14 @@ public class ConcurrentWebSocketSessionDecorator extends WebSocketSessionDecorat
 	 */
 	public int getBufferSizeLimit() {
 		return this.bufferSizeLimit;
+	}
+
+	/**
+	 * Return the configured {@link OverflowStrategy}.
+	 * @since 6.2.9
+	 */
+	public OverflowStrategy getOverflowStrategy() {
+		return this.overflowStrategy;
 	}
 
 	/**
@@ -200,42 +208,37 @@ public class ConcurrentWebSocketSessionDecorator extends WebSocketSessionDecorat
 	}
 
 	private void checkSessionLimits() {
-		if (!shouldNotSend() && this.closeLock.tryLock()) {
-			try {
-				if (getTimeSinceSendStarted() > getSendTimeLimit()) {
-					String format = "Send time %d (ms) for session '%s' exceeded the allowed limit %d";
-					String reason = String.format(format, getTimeSinceSendStarted(), getId(), getSendTimeLimit());
-					limitExceeded(reason);
-				}
-				else if (getBufferSize() > getBufferSizeLimit()) {
-					switch (this.overflowStrategy) {
-						case TERMINATE -> {
-							String format = "Buffer size %d bytes for session '%s' exceeds the allowed limit %d";
-							String reason = String.format(format, getBufferSize(), getId(), getBufferSizeLimit());
-							limitExceeded(reason);
-						}
-						case DROP -> {
-							int i = 0;
-							while (getBufferSize() > getBufferSizeLimit()) {
-								WebSocketMessage<?> message = this.buffer.poll();
-								if (message == null) {
-									break;
-								}
-								this.bufferSize.addAndGet(-message.getPayloadLength());
-								i++;
-							}
-							if (logger.isDebugEnabled()) {
-								logger.debug("Dropped " + i + " messages, buffer size: " + getBufferSize());
-							}
-						}
-						default ->
-							// Should never happen..
-							throw new IllegalStateException("Unexpected OverflowStrategy: " + this.overflowStrategy);
-					}
-				}
+		if (!shouldNotSend()) {
+			if (getTimeSinceSendStarted() > getSendTimeLimit()) {
+				String format = "Send time %d (ms) for session '%s' exceeded the allowed limit %d";
+				String reason = String.format(format, getTimeSinceSendStarted(), getId(), getSendTimeLimit());
+				limitExceeded(reason);
 			}
-			finally {
-				this.closeLock.unlock();
+			else if (getBufferSize() > getBufferSizeLimit()) {
+				switch (this.overflowStrategy) {
+					case TERMINATE -> {
+						String format = "Buffer size %d bytes for session '%s' exceeds the allowed limit %d";
+						String reason = String.format(format, getBufferSize(), getId(), getBufferSizeLimit());
+						limitExceeded(reason);
+					}
+					case DROP -> {
+						int i = 0;
+						while (getBufferSize() > getBufferSizeLimit()) {
+							WebSocketMessage<?> message = this.buffer.poll();
+							if (message == null) {
+								break;
+							}
+							this.bufferSize.addAndGet(-message.getPayloadLength());
+							i++;
+						}
+						if (logger.isDebugEnabled()) {
+							logger.debug("Dropped " + i + " messages, buffer size: " + getBufferSize());
+						}
+					}
+					default ->
+						// Should never happen..
+							throw new IllegalStateException("Unexpected OverflowStrategy: " + this.overflowStrategy);
+				}
 			}
 		}
 	}
@@ -252,20 +255,7 @@ public class ConcurrentWebSocketSessionDecorator extends WebSocketSessionDecorat
 				if (this.closeInProgress) {
 					return;
 				}
-				if (!CloseStatus.SESSION_NOT_RELIABLE.equals(status)) {
-					try {
-						checkSessionLimits();
-					}
-					catch (SessionLimitExceededException ex) {
-						// Ignore
-					}
-					if (this.limitExceeded) {
-						if (logger.isDebugEnabled()) {
-							logger.debug("Changing close status " + status + " to SESSION_NOT_RELIABLE.");
-						}
-						status = CloseStatus.SESSION_NOT_RELIABLE;
-					}
-				}
+				status = checkSessionLimitsAndChangeStatusIfNecessary(status);
 				this.closeInProgress = true;
 				super.close(status);
 			}
@@ -273,6 +263,24 @@ public class ConcurrentWebSocketSessionDecorator extends WebSocketSessionDecorat
 				this.closeLock.unlock();
 			}
 		}
+	}
+
+	private CloseStatus checkSessionLimitsAndChangeStatusIfNecessary(CloseStatus status) {
+		if (!CloseStatus.SESSION_NOT_RELIABLE.equals(status)) {
+			try {
+				checkSessionLimits();
+			}
+			catch (SessionLimitExceededException ex) {
+				// Ignore
+			}
+			if (this.limitExceeded) {
+				if (logger.isDebugEnabled()) {
+					logger.debug("Changing close status " + status + " to SESSION_NOT_RELIABLE.");
+				}
+				status = CloseStatus.SESSION_NOT_RELIABLE;
+			}
+		}
+		return status;
 	}
 
 

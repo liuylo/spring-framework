@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -159,6 +159,8 @@ public class MockAsyncContext implements AsyncContext {
 	 * {@link org.springframework.web.context.request.async.DeferredResult DeferredResult}
 	 * or on
 	 * {@link org.springframework.web.servlet.mvc.method.annotation.SseEmitter SseEmitter}.
+	 * <p>As defined by the Servlet API, a timeout of zero or less specifies
+	 * no timeout.
 	 * @param timeout the timeout value to use.
 	 * @see AsyncContext#setTimeout(long)
 	 */

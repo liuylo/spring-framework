@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,6 +35,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
@@ -229,19 +231,22 @@ class ReactiveTypeHandlerTests {
 
 		// Media type from request
 		this.servletRequest.addHeader("Accept", "text/event-stream");
-		testSseResponse(true);
+		testSseResponse(true, null);
 
 		// Media type from "produces" attribute
 		Set<MediaType> types = Collections.singleton(MediaType.TEXT_EVENT_STREAM);
 		this.servletRequest.setAttribute(HandlerMapping.PRODUCIBLE_MEDIA_TYPES_ATTRIBUTE, types);
-		testSseResponse(true);
+		testSseResponse(true, null);
+
+		// Preset media type // gh-35130
+		testSseResponse(true, MediaType.TEXT_EVENT_STREAM);
 
 		// No media type preferences
-		testSseResponse(false);
+		testSseResponse(false, null);
 	}
 
-	private void testSseResponse(boolean expectSseEmitter) throws Exception {
-		ResponseBodyEmitter emitter = handleValue(Flux.empty(), Flux.class, forClass(String.class));
+	private void testSseResponse(boolean expectSseEmitter, @Nullable MediaType contentType) throws Exception {
+		ResponseBodyEmitter emitter = handleValue(Flux.empty(), Flux.class, forClass(String.class), contentType);
 		Object actual = emitter instanceof SseEmitter;
 		assertThat(actual).isEqualTo(expectSseEmitter);
 		resetRequest();
@@ -262,7 +267,7 @@ class ReactiveTypeHandlerTests {
 		sink.tryEmitNext("baz");
 		sink.tryEmitComplete();
 
-		assertThat(emitterHandler.getValuesAsText()).isEqualTo("data:foo\n\ndata:bar\n\ndata:baz\n\n");
+		assertThat(emitterHandler.getValuesAsText()).isEqualTo("data: foo\n\ndata: bar\n\ndata: baz\n\n");
 	}
 
 	@Test
@@ -281,13 +286,14 @@ class ReactiveTypeHandlerTests {
 		sink.tryEmitNext(ServerSentEvent.builder("baz").id("3").build());
 		sink.tryEmitComplete();
 
-		assertThat(emitterHandler.getValuesAsText()).isEqualTo("id:1\ndata:foo\n\nid:2\ndata:bar\n\nid:3\ndata:baz\n\n");
+		assertThat(emitterHandler.getValuesAsText()).isEqualTo("id:1\ndata: foo\n\nid:2\ndata: bar\n\nid:3\ndata: baz\n\n");
 	}
 
-	@Test
-	void writeStreamJson() throws Exception {
+	@ParameterizedTest
+	@ValueSource(strings = {"application/jsonl", "application/x-ndjson"})
+	void writeStreamJson(String mediaType) throws Exception {
 
-		this.servletRequest.addHeader("Accept", "application/x-ndjson");
+		this.servletRequest.addHeader("Accept", mediaType);
 
 		Sinks.Many<Bar> sink = Sinks.many().unicast().onBackpressureBuffer();
 		ResponseBodyEmitter emitter = handleValue(sink.asFlux(), Flux.class, forClass(Bar.class));
@@ -305,7 +311,7 @@ class ReactiveTypeHandlerTests {
 		sink.tryEmitNext(bar2);
 		sink.tryEmitComplete();
 
-		assertThat(message.getHeaders().getContentType()).hasToString("application/x-ndjson");
+		assertThat(message.getHeaders().getContentType()).hasToString(mediaType);
 		assertThat(emitterHandler.getValues()).isEqualTo(Arrays.asList(bar1, "\n", bar2, "\n"));
 	}
 
@@ -437,7 +443,7 @@ class ReactiveTypeHandlerTests {
 
 		try {
 			Sinks.Many<String> sink = Sinks.many().unicast().onBackpressureBuffer();
-			ResponseBodyEmitter emitter = handler.handleValue(sink.asFlux(), returnType, mavContainer, this.webRequest);
+			ResponseBodyEmitter emitter = handler.handleValue(sink.asFlux(), returnType, null, mavContainer, this.webRequest);
 
 			ContextEmitterHandler emitterHandler = new ContextEmitterHandler();
 			emitter.initialize(emitterHandler);
@@ -447,7 +453,7 @@ class ReactiveTypeHandlerTests {
 
 			sink.tryEmitComplete();
 
-			assertThat(emitterHandler.getValuesAsText()).isEqualTo("data:emitted value\n\n");
+			assertThat(emitterHandler.getValuesAsText()).isEqualTo("data: emitted value\n\n");
 			assertThat(emitterHandler.getSavedRequest()).isSameAs(this.servletRequest);
 		}
 		finally {
@@ -484,9 +490,15 @@ class ReactiveTypeHandlerTests {
 	private ResponseBodyEmitter handleValue(Object returnValue, Class<?> asyncType,
 			ResolvableType genericType) throws Exception {
 
+		return handleValue(returnValue, asyncType, genericType, null);
+	}
+
+	private ResponseBodyEmitter handleValue(Object returnValue, Class<?> asyncType,
+			ResolvableType genericType, @Nullable MediaType contentType) throws Exception {
+
 		ModelAndViewContainer mavContainer = new ModelAndViewContainer();
 		MethodParameter returnType = on(TestController.class).resolveReturnType(asyncType, genericType);
-		return this.handler.handleValue(returnValue, returnType, mavContainer, this.webRequest);
+		return this.handler.handleValue(returnValue, returnType, contentType, mavContainer, this.webRequest);
 	}
 
 

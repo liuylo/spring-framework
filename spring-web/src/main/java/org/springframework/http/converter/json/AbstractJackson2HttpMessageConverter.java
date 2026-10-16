@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,6 +57,7 @@ import org.springframework.http.HttpOutputMessage;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.AbstractGenericHttpMessageConverter;
+import org.springframework.http.converter.AbstractJacksonHttpMessageConverter;
 import org.springframework.http.converter.HttpMessageConversionException;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -78,7 +79,10 @@ import org.springframework.util.TypeUtils;
  * @author Sam Brannen
  * @since 4.1
  * @see MappingJackson2HttpMessageConverter
+ * @deprecated since 7.0 in favor of {@link AbstractJacksonHttpMessageConverter}
  */
+@Deprecated(since = "7.0", forRemoval = true)
+@SuppressWarnings("removal")
 public abstract class AbstractJackson2HttpMessageConverter extends AbstractGenericHttpMessageConverter<Object> {
 
 	private static final Map<String, JsonEncoding> ENCODINGS;
@@ -104,7 +108,7 @@ public abstract class AbstractJackson2HttpMessageConverter extends AbstractGener
 	protected AbstractJackson2HttpMessageConverter(ObjectMapper objectMapper) {
 		this.defaultObjectMapper = objectMapper;
 		DefaultPrettyPrinter prettyPrinter = new DefaultPrettyPrinter();
-		prettyPrinter.indentObjectsWith(new DefaultIndenter("  ", "\ndata:"));
+		prettyPrinter.indentObjectsWith(new DefaultIndenter("  ", "\ndata: "));
 		this.ssePrettyPrinter = prettyPrinter;
 	}
 
@@ -170,7 +174,7 @@ public abstract class AbstractJackson2HttpMessageConverter extends AbstractGener
 			this.objectMapperRegistrations = new LinkedHashMap<>();
 		}
 		Map<MediaType, ObjectMapper> registrations =
-				this.objectMapperRegistrations.computeIfAbsent(clazz, c -> new LinkedHashMap<>());
+				this.objectMapperRegistrations.computeIfAbsent(clazz, key -> new LinkedHashMap<>());
 		registrar.accept(registrations);
 	}
 
@@ -181,7 +185,7 @@ public abstract class AbstractJackson2HttpMessageConverter extends AbstractGener
 	 * or empty if in case of no registrations for the given class.
 	 * @since 5.3.4
 	 */
-	public @Nullable Map<MediaType, ObjectMapper> getObjectMappersForType(Class<?> clazz) {
+	public Map<MediaType, ObjectMapper> getObjectMappersForType(Class<?> clazz) {
 		for (Map.Entry<Class<?>, Map<MediaType, ObjectMapper>> entry : getObjectMapperRegistrations().entrySet()) {
 			if (entry.getKey().isAssignableFrom(clazz)) {
 				return entry.getValue();
@@ -286,6 +290,11 @@ public abstract class AbstractJackson2HttpMessageConverter extends AbstractGener
 		}
 		logWarningIfNecessary(clazz, causeRef.get());
 		return false;
+	}
+
+	@Override
+	public boolean canWriteRepeatedly(Object o, @Nullable MediaType contentType) {
+		return true;
 	}
 
 	/**
@@ -566,7 +575,9 @@ public abstract class AbstractJackson2HttpMessageConverter extends AbstractGener
 	}
 
 	@Override
+	@SuppressWarnings("removal")
 	protected boolean supportsRepeatableWrites(Object o) {
 		return true;
 	}
+
 }

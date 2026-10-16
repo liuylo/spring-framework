@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -61,6 +61,7 @@ import static org.assertj.core.api.Assertions.within;
  * @author Sebastien Deleuze
  * @author Juergen Hoeller
  */
+@SuppressWarnings("removal")
 class MappingJackson2HttpMessageConverterTests {
 
 	private final MappingJackson2HttpMessageConverter converter = new MappingJackson2HttpMessageConverter();
@@ -384,7 +385,7 @@ class MappingJackson2HttpMessageConverterTests {
 		this.converter.writeInternal(bean, null, outputMessage);
 		String result = outputMessage.getBodyAsString(StandardCharsets.UTF_8);
 
-		assertThat(result).isEqualTo("{\ndata:  \"name\" : \"Jason\"\ndata:}");
+		assertThat(result).isEqualTo("{\ndata:   \"name\" : \"Jason\"\ndata: }");
 	}
 
 	@Test

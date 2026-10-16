@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -152,7 +152,7 @@ public class DefaultTransactionDefinition implements TransactionDefinition, Seri
 	 * in the TransactionDefinition interface. Default is PROPAGATION_REQUIRED.
 	 * <p>Exclusively designed for use with {@link #PROPAGATION_REQUIRED} or
 	 * {@link #PROPAGATION_REQUIRES_NEW} since it only applies to newly started
-	 * transactions. Consider switching the "validateExistingTransactions" flag to
+	 * transactions. Consider switching the "validateExistingTransaction" flag to
 	 * "true" on your transaction manager if you'd like isolation level declarations
 	 * to get rejected when participating in an existing transaction with a different
 	 * isolation level.
@@ -194,7 +194,7 @@ public class DefaultTransactionDefinition implements TransactionDefinition, Seri
 	 * in the TransactionDefinition interface. Default is ISOLATION_DEFAULT.
 	 * <p>Exclusively designed for use with {@link #PROPAGATION_REQUIRED} or
 	 * {@link #PROPAGATION_REQUIRES_NEW} since it only applies to newly started
-	 * transactions. Consider switching the "validateExistingTransactions" flag to
+	 * transactions. Consider switching the "validateExistingTransaction" flag to
 	 * "true" on your transaction manager if you'd like isolation level declarations
 	 * to get rejected when participating in an existing transaction with a different
 	 * isolation level.

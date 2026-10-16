@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -104,7 +104,14 @@ final class ExecutorLifecycleDelegate implements SmartLifecycle {
 	}
 
 	void markShutdown() {
-		this.shutdown = true;
+		this.pauseLock.lock();
+		try {
+			this.shutdown = true;
+			this.unpaused.signalAll();
+		}
+		finally {
+			this.pauseLock.unlock();
+		}
 	}
 
 	void beforeExecute(Thread thread) {

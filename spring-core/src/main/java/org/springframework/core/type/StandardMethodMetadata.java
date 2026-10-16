@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -52,9 +52,9 @@ public class StandardMethodMetadata implements MethodMetadata {
 	/**
 	 * Create a new StandardMethodMetadata wrapper for the given Method.
 	 * @param introspectedMethod the Method to introspect
-	 * @deprecated since 5.2 in favor of obtaining instances via {@link AnnotationMetadata}
+	 * @deprecated in favor of obtaining instances via {@link AnnotationMetadata}
 	 */
-	@Deprecated
+	@Deprecated(since = "5.2")
 	public StandardMethodMetadata(Method introspectedMethod) {
 		this(introspectedMethod, false);
 	}
@@ -103,7 +103,7 @@ public class StandardMethodMetadata implements MethodMetadata {
 
 	@Override
 	public String getReturnTypeName() {
-		return this.introspectedMethod.getReturnType().getName();
+		return this.introspectedMethod.getReturnType().getTypeName();
 	}
 
 	@Override
@@ -131,7 +131,7 @@ public class StandardMethodMetadata implements MethodMetadata {
 	}
 
 	@Override
-	public @Nullable Map<String, Object> getAnnotationAttributes(String annotationName, boolean classValuesAsString) {
+	public @Nullable Map<String, @Nullable Object> getAnnotationAttributes(String annotationName, boolean classValuesAsString) {
 		if (this.nestedAnnotationsAsMap) {
 			return MethodMetadata.super.getAnnotationAttributes(annotationName, classValuesAsString);
 		}
@@ -140,7 +140,8 @@ public class StandardMethodMetadata implements MethodMetadata {
 	}
 
 	@Override
-	public @Nullable MultiValueMap<String, Object> getAllAnnotationAttributes(String annotationName, boolean classValuesAsString) {
+	@SuppressWarnings("NullAway") // Null-safety of Java super method not yet managed
+	public @Nullable MultiValueMap<String, @Nullable Object> getAllAnnotationAttributes(String annotationName, boolean classValuesAsString) {
 		if (this.nestedAnnotationsAsMap) {
 			return MethodMetadata.super.getAllAnnotationAttributes(annotationName, classValuesAsString);
 		}
@@ -163,6 +164,11 @@ public class StandardMethodMetadata implements MethodMetadata {
 	@Override
 	public String toString() {
 		return this.introspectedMethod.toString();
+	}
+
+
+	static MethodMetadata from(Method introspectedMethod) {
+		return new StandardMethodMetadata(introspectedMethod, true);
 	}
 
 }

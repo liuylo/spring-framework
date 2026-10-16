@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import java.net.URI;
 import java.net.URL;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.Charset;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -179,6 +180,9 @@ public class VersionResourceResolver extends AbstractResourceResolver {
 		}
 
 		String simplePath = versionStrategy.removeVersion(requestPath, candidate);
+		if (ResourceHandlerUtils.shouldIgnoreInputPath(simplePath)) {
+			return Mono.empty();
+		}
 		return chain.resolveResource(exchange, simplePath, locations)
 				.filterWhen(resource -> versionStrategy.getResourceVersion(resource)
 						.map(actual -> {
@@ -281,6 +285,11 @@ public class VersionResourceResolver extends AbstractResourceResolver {
 		@Override
 		public File getFile() throws IOException {
 			return this.original.getFile();
+		}
+
+		@Override
+		public Path getFilePath() throws IOException {
+			return this.original.getFilePath();
 		}
 
 		@Override

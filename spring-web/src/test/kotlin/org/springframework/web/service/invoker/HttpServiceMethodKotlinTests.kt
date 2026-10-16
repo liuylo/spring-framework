@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ package org.springframework.web.service.invoker
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.runBlocking
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatIllegalStateException
 import org.junit.jupiter.api.Test
@@ -42,7 +41,7 @@ class KotlinHttpServiceMethodTests {
 	private val reactorProxyFactory = HttpServiceProxyFactory.builderFor(this.reactorExchangeAdapter).build()
 
 	@Test
-	fun coroutinesService(): Unit = runBlocking {
+	suspend fun coroutinesService() {
 		val service = reactorProxyFactory.createClient(FunctionsService::class.java)
 
 		val stringBody = service.stringBody()
@@ -54,6 +53,10 @@ class KotlinHttpServiceMethodTests {
 
 		val flowBody = service.flowBody()
 		assertThat(flowBody.toList()).containsExactly("exchange", "For", "Body", "Flux")
+		verifyClientInvocation("exchangeForBodyFlux", object : ParameterizedTypeReference<String>() {})
+
+		val suspendingFlowBody = service.suspendingFlowBody()
+		assertThat(suspendingFlowBody.toList()).containsExactly("exchange", "For", "Body", "Flux")
 		verifyClientInvocation("exchangeForBodyFlux", object : ParameterizedTypeReference<String>() {})
 
 		val stringEntity = service.stringEntity()
@@ -126,6 +129,9 @@ class KotlinHttpServiceMethodTests {
 
 		@GetExchange
 		suspend fun listBody(): MutableList<String>
+
+		@GetExchange
+		suspend fun suspendingFlowBody(): Flow<String>
 
 		@GetExchange
 		suspend fun stringEntity(): ResponseEntity<String>

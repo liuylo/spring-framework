@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -180,6 +180,9 @@ public class RouterFunctionMockMvcBuilder extends AbstractMockMvcBuilder<RouterF
 	 * <p>In Spring MVC Test, this value is used to determine how long to wait
 	 * for async execution to complete so that a test can verify the results
 	 * synchronously.
+	 * <p>As defined by the Servlet API, a timeout of zero or less specifies
+	 * no timeout, in which case Spring MVC Test waits indefinitely for async
+	 * execution to complete.
 	 * @param timeout the timeout value in milliseconds
 	 */
 	public RouterFunctionMockMvcBuilder setAsyncRequestTimeout(long timeout) {
@@ -268,6 +271,7 @@ public class RouterFunctionMockMvcBuilder extends AbstractMockMvcBuilder<RouterF
 		}
 
 		@Override
+		@SuppressWarnings("removal")
 		protected void configureMessageConverters(List<HttpMessageConverter<?>> converters) {
 			converters.addAll(messageConverters);
 		}

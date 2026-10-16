@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.logging.Log;
@@ -39,6 +38,7 @@ import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessageType;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.broker.OrderedMessageChannelDecorator;
+import org.springframework.messaging.simp.stomp.StompBrokerRelayMessageHandler;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.messaging.support.MessageHeaderInitializer;
@@ -275,12 +275,10 @@ public class UserDestinationMessageHandler implements MessageHandler, SmartLifec
 			return this.messagingTemplate;
 		}
 
-		public void send(UserDestinationResult destinationResult, Message<?> message) throws MessagingException {
-			Set<String> sessionIds = destinationResult.getSessionIds();
-			Iterator<String> itr = (sessionIds != null ? sessionIds.iterator() : null);
-
-			for (String target : destinationResult.getTargetDestinations()) {
-				String sessionId = (itr != null ? itr.next() : null);
+		public void send(UserDestinationResult result, Message<?> message) throws MessagingException {
+			Iterator<String> itr = result.getSessionIds().iterator();
+			for (String target : result.getTargetDestinations()) {
+				String sessionId = (itr.hasNext() ? itr.next() : null);
 				getTemplateToUse(sessionId).send(target, message);
 			}
 		}
@@ -336,8 +334,9 @@ public class UserDestinationMessageHandler implements MessageHandler, SmartLifec
 			SimpMessageHeaderAccessor accessor =
 					MessageHeaderAccessor.getAccessor(message, SimpMessageHeaderAccessor.class);
 			Assert.state(accessor != null, "No SimpMessageHeaderAccessor");
-			if (accessor.getSessionId() == null) {
-				// Our own broadcast
+			if (accessor.getSessionId() == null ||
+					!accessor.getSessionId().equals(StompBrokerRelayMessageHandler.SYSTEM_SESSION_ID)) {
+				// Our own or not a broadcast
 				return null;
 			}
 			destination = accessor.getFirstNativeHeader(SimpMessageHeaderAccessor.ORIGINAL_DESTINATION);

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,7 +42,6 @@ import org.springframework.util.Assert;
  * @see java.util.concurrent.ExecutorService
  * @see java.util.concurrent.Executors
  */
-@SuppressWarnings("deprecation")
 public class TaskExecutorAdapter implements AsyncTaskExecutor {
 
 	private final Executor concurrentExecutor;
@@ -114,7 +113,7 @@ public class TaskExecutorAdapter implements AsyncTaskExecutor {
 	}
 
 	@Override
-	public <T> Future<T> submit(Callable<T> task) {
+	public <T extends @Nullable Object> Future<T> submit(Callable<T> task) {
 		try {
 			if (this.taskDecorator == null &&
 					this.concurrentExecutor instanceof ExecutorService executorService) {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -110,8 +110,21 @@ class InvocableHandlerMethodKotlinTests {
 	}
 
 	@Test
+	fun nestedValueClass() {
+		composite.addResolver(StubArgumentResolver(Long::class.java, 1L))
+		val value = getInvocable(ValueClassHandler::nestedValueClass.javaMethod!!).invokeForRequest(request, null)
+		Assertions.assertThat(value).isEqualTo(1L)
+	}
+
+	@Test
 	fun valueClassReturnValue() {
 		val value = getInvocable(ValueClassHandler::valueClassReturnValue.javaMethod!!).invokeForRequest(request, null)
+		Assertions.assertThat(value).isEqualTo("foo")
+	}
+
+	@Test
+	fun nestedValueClassReturnValue() {
+		val value = getInvocable(ValueClassHandler::nestedValueClassReturnValue.javaMethod!!).invokeForRequest(request, null)
 		Assertions.assertThat(value).isEqualTo("foo")
 	}
 
@@ -133,6 +146,20 @@ class InvocableHandlerMethodKotlinTests {
 		composite.addResolver(StubArgumentResolver(String::class.java, ""))
 		val invocable = getInvocable(ValueClassHandler::valueClassWithInit.javaMethod!!)
 		Assertions.assertThatIllegalArgumentException().isThrownBy { invocable.invokeForRequest(request, null) }
+	}
+
+	@Test
+	fun valueClassWithNullableAndNonNullParameter() {
+		composite.addResolver(StubArgumentResolver(LongValueClass::class.java, LongValueClass(1)))
+		val value = getInvocable(ValueClassHandler::valueClassWithNullable.javaMethod!!).invokeForRequest(request, null)
+		Assertions.assertThat(value).isEqualTo(1L)
+	}
+
+	@Test
+	fun valueClassWithNullableAndUnderlyingValue() {
+		composite.addResolver(StubArgumentResolver(LongValueClass::class.java, 1L))
+		val value = getInvocable(ValueClassHandler::valueClassWithNullable.javaMethod!!).invokeForRequest(request, null)
+		Assertions.assertThat(value).isEqualTo(1L)
 	}
 
 	@Test
@@ -193,6 +220,14 @@ class InvocableHandlerMethodKotlinTests {
 		composite.addResolver(StubArgumentResolver(LongValueClass::class.java, null))
 		val value = getInvocable(SuspendingValueClassHandler::valueClassWithNullable.javaMethod!!).invokeForRequest(request, null)
 		StepVerifier.create(value as Mono<Long>).verifyComplete()
+	}
+
+	@Test
+	fun suspendingValueClassWithNullableAndUnderlyingValue() {
+		composite.addResolver(ContinuationHandlerMethodArgumentResolver())
+		composite.addResolver(StubArgumentResolver(LongValueClass::class.java, 1L))
+		val value = getInvocable(SuspendingValueClassHandler::valueClassWithNullable.javaMethod!!).invokeForRequest(request, null)
+		StepVerifier.create(value as Mono<Long>).expectNext(1L).verifyComplete()
 	}
 
 	@Test
@@ -273,9 +308,13 @@ class InvocableHandlerMethodKotlinTests {
 
 		fun valueClassReturnValue() = StringValueClass("foo")
 
+		fun nestedValueClassReturnValue() = NestedStringValueClass(StringValueClass("foo"))
+
 		fun resultOfUnitReturnValue() = Result.success(Unit)
 
 		fun longValueClass(limit: LongValueClass) = limit.value
+
+		fun nestedValueClass(limit: ULongValueClass) = limit.value
 
 		fun doubleValueClass(limit: DoubleValueClass = DoubleValueClass(3.1)) = limit.value
 
@@ -359,7 +398,13 @@ class InvocableHandlerMethodKotlinTests {
 	value class StringValueClass(val value: String)
 
 	@JvmInline
+	value class NestedStringValueClass(val value: StringValueClass)
+
+	@JvmInline
 	value class LongValueClass(val value: Long)
+
+	@JvmInline
+	value class ULongValueClass(val value: ULong)
 
 	@JvmInline
 	value class DoubleValueClass(val value: Double)

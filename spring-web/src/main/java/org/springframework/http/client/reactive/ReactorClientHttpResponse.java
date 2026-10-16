@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ import java.util.Collection;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 
-import io.netty.buffer.ByteBufAllocator;
 import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.DefaultCookie;
 import org.apache.commons.logging.Log;
@@ -81,19 +80,6 @@ class ReactorClientHttpResponse implements ClientHttpResponse {
 		this.bufferFactory = new NettyDataBufferFactory(connection.outbound().alloc());
 	}
 
-	/**
-	 * Constructor with inputs extracted from a {@link Connection}.
-	 * @deprecated as of 5.2.8, in favor of {@link #ReactorClientHttpResponse(HttpClientResponse, Connection)}
-	 */
-	@Deprecated
-	public ReactorClientHttpResponse(HttpClientResponse response, NettyInbound inbound, ByteBufAllocator alloc) {
-		this.response = response;
-		MultiValueMap<String, String> adapter = new Netty4HeadersAdapter(response.responseHeaders());
-		this.headers = HttpHeaders.readOnlyHttpHeaders(adapter);
-		this.inbound = inbound;
-		this.bufferFactory = new NettyDataBufferFactory(alloc);
-	}
-
 
 	@Override
 	public String getId() {
@@ -148,6 +134,7 @@ class ReactorClientHttpResponse implements ClientHttpResponse {
 								.secure(cookie.isSecure())
 								.httpOnly(cookie.isHttpOnly())
 								.sameSite(getSameSite(cookie))
+								.partitioned(getPartitioned(cookie))
 								.build()));
 		return CollectionUtils.unmodifiableMultiValueMap(result);
 	}
@@ -157,6 +144,13 @@ class ReactorClientHttpResponse implements ClientHttpResponse {
 			return defaultCookie.sameSite().name();
 		}
 		return null;
+	}
+
+	private static boolean getPartitioned(Cookie cookie) {
+		if (cookie instanceof DefaultCookie defaultCookie) {
+			return defaultCookie.isPartitioned();
+		}
+		return false;
 	}
 
 	/**

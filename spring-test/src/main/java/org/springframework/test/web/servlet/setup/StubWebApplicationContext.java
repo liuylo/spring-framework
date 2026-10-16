@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,6 +43,7 @@ import org.springframework.context.MessageSource;
 import org.springframework.context.MessageSourceResolvable;
 import org.springframework.context.NoSuchMessageException;
 import org.springframework.context.support.DelegatingMessageSource;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.ResolvableType;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.StandardEnvironment;
@@ -64,6 +65,7 @@ import org.springframework.web.context.support.ServletContextResourcePatternReso
  *
  * @author Rossen Stoyanchev
  * @author Juergen Hoeller
+ * @author Yanming Zhou
  * @since 3.2
  */
 class StubWebApplicationContext implements WebApplicationContext {
@@ -168,6 +170,11 @@ class StubWebApplicationContext implements WebApplicationContext {
 	}
 
 	@Override
+	public <T> T getBean(String name, ParameterizedTypeReference<T> typeReference) throws BeansException {
+		return this.beanFactory.getBean(name, typeReference);
+	}
+
+	@Override
 	public Object getBean(String name, @Nullable Object @Nullable ... args) throws BeansException {
 		return this.beanFactory.getBean(name, args);
 	}
@@ -189,6 +196,11 @@ class StubWebApplicationContext implements WebApplicationContext {
 
 	@Override
 	public <T> ObjectProvider<T> getBeanProvider(ResolvableType requiredType) {
+		return this.beanFactory.getBeanProvider(requiredType);
+	}
+
+	@Override
+	public <T> ObjectProvider<T> getBeanProvider(ParameterizedTypeReference<T> requiredType) {
 		return this.beanFactory.getBeanProvider(requiredType);
 	}
 
@@ -350,17 +362,17 @@ class StubWebApplicationContext implements WebApplicationContext {
 	//---------------------------------------------------------------------
 
 	@Override
-	public @Nullable String getMessage(String code, Object @Nullable [] args, @Nullable String defaultMessage, Locale locale) {
+	public @Nullable String getMessage(String code, Object @Nullable [] args, @Nullable String defaultMessage, @Nullable Locale locale) {
 		return this.messageSource.getMessage(code, args, defaultMessage, locale);
 	}
 
 	@Override
-	public String getMessage(String code, Object @Nullable [] args, Locale locale) throws NoSuchMessageException {
+	public String getMessage(String code, Object @Nullable [] args, @Nullable Locale locale) throws NoSuchMessageException {
 		return this.messageSource.getMessage(code, args, locale);
 	}
 
 	@Override
-	public String getMessage(MessageSourceResolvable resolvable, Locale locale) throws NoSuchMessageException {
+	public String getMessage(MessageSourceResolvable resolvable, @Nullable Locale locale) throws NoSuchMessageException {
 		return this.messageSource.getMessage(resolvable, locale);
 	}
 
@@ -418,7 +430,7 @@ class StubWebApplicationContext implements WebApplicationContext {
 			return BeanUtils.instantiateClass(beanClass);
 		}
 
-		@Deprecated
+		@Deprecated(since = "6.1")
 		@Override
 		public Object createBean(Class<?> beanClass, int autowireMode, boolean dependencyCheck) {
 			return BeanUtils.instantiateClass(beanClass);

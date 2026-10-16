@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package org.springframework.aop.support;
 
+import java.lang.reflect.InaccessibleObjectException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -65,7 +66,7 @@ import org.springframework.util.ReflectionUtils;
  */
 public abstract class AopUtils {
 
-	private static final boolean coroutinesReactorPresent = ClassUtils.isPresent(
+	private static final boolean COROUTINES_REACTOR_PRESENT = ClassUtils.isPresent(
 			"kotlinx.coroutines.reactor.MonoKt", AopUtils.class.getClassLoader());
 
 
@@ -347,14 +348,14 @@ public abstract class AopUtils {
 	 * @throws Throwable if thrown by the target method
 	 * @throws org.springframework.aop.AopInvocationException in case of a reflection error
 	 */
-	public static @Nullable Object invokeJoinpointUsingReflection(@Nullable Object target, Method method, Object[] args)
+	public static @Nullable Object invokeJoinpointUsingReflection(@Nullable Object target, Method method, @Nullable Object[] args)
 			throws Throwable {
 
 		// Use reflection to invoke the method.
 		try {
 			Method originalMethod = BridgeMethodResolver.findBridgedMethod(method);
 			ReflectionUtils.makeAccessible(originalMethod);
-			return (coroutinesReactorPresent && KotlinDetector.isSuspendingFunction(originalMethod) ?
+			return (COROUTINES_REACTOR_PRESENT && KotlinDetector.isSuspendingFunction(originalMethod) ?
 					KotlinDelegate.invokeSuspendingFunction(originalMethod, target, args) : originalMethod.invoke(target, args));
 		}
 		catch (InvocationTargetException ex) {
@@ -366,7 +367,7 @@ public abstract class AopUtils {
 			throw new AopInvocationException("AOP configuration seems to be invalid: tried calling method [" +
 					method + "] on target [" + target + "]", ex);
 		}
-		catch (IllegalAccessException ex) {
+		catch (IllegalAccessException | InaccessibleObjectException ex) {
 			throw new AopInvocationException("Could not access method [" + method + "]", ex);
 		}
 	}
@@ -377,7 +378,7 @@ public abstract class AopUtils {
 	 */
 	private static class KotlinDelegate {
 
-		public static Object invokeSuspendingFunction(Method method, @Nullable Object target, Object... args) {
+		public static Object invokeSuspendingFunction(Method method, @Nullable Object target, @Nullable Object... args) {
 			Continuation<?> continuation = (Continuation<?>) args[args.length -1];
 			Assert.state(continuation != null, "No Continuation available");
 			CoroutineContext context = continuation.getContext().minusKey(Job.Key);

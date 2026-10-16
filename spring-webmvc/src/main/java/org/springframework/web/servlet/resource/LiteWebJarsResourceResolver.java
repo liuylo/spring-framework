@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -88,7 +88,10 @@ public class LiteWebJarsResourceResolver extends AbstractResourceResolver {
 		if (path == null) {
 			String webJarResourcePath = findWebJarResourcePath(resourceUrlPath);
 			if (webJarResourcePath != null) {
-				return chain.resolveUrlPath(webJarResourcePath, locations);
+				path = chain.resolveUrlPath(webJarResourcePath, locations);
+				if (path == null && webJarResourcePath.endsWith("/")) {
+					path = webJarResourcePath;
+				}
 			}
 		}
 		return path;

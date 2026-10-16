@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package org.springframework.beans.factory.support;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.InaccessibleObjectException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.function.Supplier;
@@ -145,7 +146,6 @@ public class SimpleInstantiationStrategy implements InstantiationStrategy {
 	}
 
 	@Override
-	@SuppressWarnings("NullAway") // https://github.com/uber/NullAway/issues/1113
 	public Object instantiate(RootBeanDefinition bd, @Nullable String beanName, BeanFactory owner,
 			@Nullable Object factoryBean, Method factoryMethod, @Nullable Object... args) {
 
@@ -159,7 +159,7 @@ public class SimpleInstantiationStrategy implements InstantiationStrategy {
 				return result;
 			}
 			catch (IllegalArgumentException ex) {
-				if (factoryBean != null && !factoryMethod.getDeclaringClass().isAssignableFrom(factoryBean.getClass())) {
+				if (factoryBean != null && !factoryMethod.getDeclaringClass().isInstance(factoryBean)) {
 					throw new BeanInstantiationException(factoryMethod,
 							"Illegal factory instance for factory method '" + factoryMethod.getName() + "'; " +
 									"instance: " + factoryBean.getClass().getName(), ex);
@@ -168,7 +168,7 @@ public class SimpleInstantiationStrategy implements InstantiationStrategy {
 						"Illegal arguments to factory method '" + factoryMethod.getName() + "'; " +
 								"args: " + StringUtils.arrayToCommaDelimitedString(args), ex);
 			}
-			catch (IllegalAccessException ex) {
+			catch (IllegalAccessException | InaccessibleObjectException ex) {
 				throw new BeanInstantiationException(factoryMethod,
 						"Cannot access factory method '" + factoryMethod.getName() + "'; is it public?", ex);
 			}

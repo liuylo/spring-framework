@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -52,6 +52,7 @@ import org.springframework.web.reactive.HandlerResult;
 import org.springframework.web.reactive.accept.HeaderContentTypeResolver;
 import org.springframework.web.reactive.accept.RequestedContentTypeResolver;
 import org.springframework.web.server.NotAcceptableStatusException;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.testfixture.http.server.reactive.MockServerHttpResponse;
 import org.springframework.web.testfixture.server.MockServerWebExchange;
@@ -199,6 +200,7 @@ class ViewResolutionResultHandlerTests {
 		testHandle("/account", returnType, 99L, "account: {id=123, myLong=99}", resolver);
 
 		returnType = on(Handler.class).resolveReturnType(Rendering.class);
+		@SuppressWarnings("deprecation")
 		HttpStatus status = HttpStatus.UNPROCESSABLE_ENTITY;
 		returnValue = Rendering.view("account").modelAttribute("a", "a1").status(status).header("h", "h1").build();
 		String expected = "account: {a=a1, id=123}";
@@ -253,6 +255,20 @@ class ViewResolutionResultHandlerTests {
 		exchange = MockServerWebExchange.from(get("/account.123"));
 		handler.handleResult(exchange, result).block(Duration.ofMillis(5000));
 		assertResponseBody(exchange, "account: {id=123}");
+	}
+
+	@Test
+	void defaultViewNameWithRedirectPrefixFails() {
+		MethodParameter returnType = on(Handler.class).resolveReturnType(Mono.class, String.class);
+		HandlerResult result = new HandlerResult(new Object(), Mono.empty(), returnType, this.bindingContext);
+		ViewResolutionResultHandler handler = resultHandler(new TestViewResolver("account"));
+
+		MockServerWebExchange exchange = MockServerWebExchange.from(get("/redirect:account"));
+		Mono<Void> mono = handler.handleResult(exchange, result);
+		StepVerifier.create(mono)
+				.expectNextCount(0)
+				.expectError(ResponseStatusException.class)
+				.verify();
 	}
 
 	@Test

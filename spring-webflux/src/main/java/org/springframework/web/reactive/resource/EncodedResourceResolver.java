@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import java.net.URI;
 import java.net.URL;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.charset.Charset;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -37,8 +38,8 @@ import reactor.core.publisher.Mono;
 import org.springframework.core.io.AbstractResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.util.Assert;
+import org.springframework.util.StringUtils;
 import org.springframework.web.server.ServerWebExchange;
 
 /**
@@ -141,35 +142,29 @@ public class EncodedResourceResolver extends AbstractResourceResolver {
 				return resource;
 			}
 
-			String acceptEncoding = getAcceptEncoding(exchange);
-			if (acceptEncoding == null) {
+			List<String> acceptedCodings = parseAcceptEncoding(exchange);
+			if (acceptedCodings.isEmpty()) {
 				return resource;
 			}
 
-			for (String coding : this.contentCodings) {
-				if (acceptEncoding.contains(coding)) {
+			for (String acceptedCoding : acceptedCodings) {
+				if (this.contentCodings.contains(acceptedCoding)) {
 					try {
-						String extension = getExtension(coding);
-						Resource encoded = new EncodedResource(resource, coding, extension);
+						String extension = getExtension(acceptedCoding);
+						Resource encoded = new EncodedResource(resource, acceptedCoding, extension);
 						if (encoded.exists()) {
 							return encoded;
 						}
 					}
 					catch (IOException ex) {
 						logger.trace(exchange.getLogPrefix() +
-								"No " + coding + " resource for [" + resource.getFilename() + "]", ex);
+								"No " + acceptedCoding + " resource for [" + resource.getFilename() + "]", ex);
 					}
 				}
 			}
 
 			return resource;
 		});
-	}
-
-	private @Nullable String getAcceptEncoding(ServerWebExchange exchange) {
-		ServerHttpRequest request = exchange.getRequest();
-		String header = request.getHeaders().getFirst(HttpHeaders.ACCEPT_ENCODING);
-		return (header != null ? header.toLowerCase(Locale.ROOT) : null);
 	}
 
 	private String getExtension(String coding) {
@@ -185,6 +180,23 @@ public class EncodedResourceResolver extends AbstractResourceResolver {
 			List<? extends Resource> locations, ResourceResolverChain chain) {
 
 		return chain.resolveUrlPath(resourceUrlPath, locations);
+	}
+
+	/**
+	 * Parse the accepted encodings from the given HTTP exchange request.
+	 */
+	static List<String> parseAcceptEncoding(ServerWebExchange exchange) {
+		String header = exchange.getRequest().getHeaders().getFirst("Accept-Encoding");
+		if (!StringUtils.hasText(header)) {
+			return Collections.emptyList();
+		}
+		header = header.toLowerCase(Locale.ROOT);
+		return Arrays.stream(StringUtils.tokenizeToStringArray(header, ","))
+				.map(token -> {
+					int index = token.indexOf(';');
+					return (index >= 0 ? token.substring(0, index) : token).trim();
+				})
+				.toList();
 	}
 
 
@@ -238,6 +250,11 @@ public class EncodedResourceResolver extends AbstractResourceResolver {
 		@Override
 		public File getFile() throws IOException {
 			return this.encoded.getFile();
+		}
+
+		@Override
+		public Path getFilePath() throws IOException {
+			return this.encoded.getFilePath();
 		}
 
 		@Override

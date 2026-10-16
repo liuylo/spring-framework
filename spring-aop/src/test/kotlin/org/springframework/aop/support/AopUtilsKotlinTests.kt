@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ class AopUtilsKotlinTests {
 	@Test
 	fun `Invoking suspending function on bridged method should return Mono`() {
 		val value = "foo"
-		val bridgedMethod = ReflectionUtils.findMethod(WithInterface::class.java, "handle", Object::class.java, Continuation::class.java)!!
+		val bridgedMethod = ReflectionUtils.findMethod(WithInterface::class.java, "handle", Any::class.java, Continuation::class.java)!!
 		val continuation = Continuation<Any>(CoroutineName("test")) { }
 		val result = AopUtils.invokeJoinpointUsingReflection(WithInterface(), bridgedMethod, arrayOf(value, continuation))
 		assertThat(result).isInstanceOfSatisfying(Mono::class.java) {

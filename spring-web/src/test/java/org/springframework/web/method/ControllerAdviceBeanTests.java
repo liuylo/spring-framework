@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -202,7 +202,7 @@ class ControllerAdviceBeanTests {
 
 	@Test
 	@SuppressWarnings({"rawtypes", "unchecked"})
-	public void findAnnotatedBeansSortsBeans() {
+	void findAnnotatedBeansSortsBeans() {
 		Class[] expectedTypes = {
 				// Since ControllerAdviceBean currently treats PriorityOrdered the same as Ordered,
 				// OrderedControllerAdvice is sorted before PriorityOrderedControllerAdvice.

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -86,7 +86,7 @@ import static org.springframework.web.servlet.mvc.method.annotation.MvcUriCompon
  * @author Sam Brannen
  */
 @SuppressWarnings("unused")
-public class MvcUriComponentsBuilderTests {
+class MvcUriComponentsBuilderTests {
 
 	private final MockHttpServletRequest request = new MockHttpServletRequest();
 
@@ -210,7 +210,7 @@ public class MvcUriComponentsBuilderTests {
 	// SPR-16668
 	private void adaptRequestFromForwardedHeaders() throws Exception {
 		MockFilterChain chain = new MockFilterChain();
-		new ForwardedHeaderFilter().doFilter(this.request, new MockHttpServletResponse(), chain);
+		new ForwardedHeaderFilter(false).doFilter(this.request, new MockHttpServletResponse(), chain);
 		HttpServletRequest adaptedRequest = (HttpServletRequest) chain.getRequest();
 		RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(adaptedRequest));
 	}
@@ -252,14 +252,14 @@ public class MvcUriComponentsBuilderTests {
 	}
 
 	@Test  // SPR-12977
-	public void fromMethodNameWithBridgedMethod() {
+	void fromMethodNameWithBridgedMethod() {
 		UriComponents uriComponents = fromMethodName(PersonCrudController.class, "get", (long) 42).build();
 
 		assertThat(uriComponents.toUriString()).isEqualTo("http://localhost/42");
 	}
 
 	@Test  // SPR-11391
-	public void fromMethodNameTypeLevelPathVariableWithoutArgumentValue() {
+	void fromMethodNameTypeLevelPathVariableWithoutArgumentValue() {
 		UriComponents uriComponents = fromMethodName(UserContactController.class, "showCreate", 123).build();
 
 		assertThat(uriComponents.getPath()).isEqualTo("/user/123/contacts/create");
@@ -273,7 +273,7 @@ public class MvcUriComponentsBuilderTests {
 	}
 
 	@Test  // gh-29897
-	public void fromMethodNameInUnmappedControllerMethod() {
+	void fromMethodNameInUnmappedControllerMethod() {
 		UriComponents uriComponents = fromMethodName(UnmappedControllerMethod.class, "getMethod").build();
 
 		assertThat(uriComponents.toUriString()).isEqualTo("http://localhost/path");
@@ -301,7 +301,7 @@ public class MvcUriComponentsBuilderTests {
 	}
 
 	@Test  // SPR-14405
-	public void fromMethodNameWithOptionalParam() {
+	void fromMethodNameWithOptionalParam() {
 		UriComponents uriComponents = fromMethodName(ControllerWithMethods.class,
 				"methodWithOptionalParam", new Object[] {null}).build();
 
@@ -309,7 +309,7 @@ public class MvcUriComponentsBuilderTests {
 	}
 
 	@Test  // gh-22656
-	public void fromMethodNameWithOptionalNamedParam() {
+	void fromMethodNameWithOptionalNamedParam() {
 		UriComponents uriComponents = fromMethodName(ControllerWithMethods.class,
 				"methodWithOptionalNamedParam", Optional.of("foo")).build();
 
@@ -333,6 +333,20 @@ public class MvcUriComponentsBuilderTests {
 		UriComponents uriComponents = fromMethodName(ControllerWithMethods.class,
 				"methodWithConfigurableMapping", "1").build();
 		assertThat(uriComponents.toUriString()).isEqualTo("http://localhost/something/custom/1/foo");
+	}
+
+	@Test // gh-35348
+	void fromMethodNameConfigurablePathSpEL() {
+		try {
+			System.setProperty("customMapping", "custom");
+			StandardEnvironment environment = new StandardEnvironment();
+			initWebApplicationContext(WebConfig.class, environment);
+			UriComponents uric = fromMethodName(ControllerWithMethods.class, "methodWithSpEL", "1").build();
+			assertThat(uric.toUriString()).isEqualTo("http://localhost/something/custom/1/foo");
+		}
+		finally {
+			System.clearProperty("customMapping");
+		}
 	}
 
 	@Test
@@ -444,7 +458,7 @@ public class MvcUriComponentsBuilderTests {
 	}
 
 	@Test  // SPR-16710
-	public void fromMethodCallWithModelAndViewReturnType() {
+	void fromMethodCallWithModelAndViewReturnType() {
 		UriComponents uriComponents = fromMethodCall(
 				on(BookingControllerWithModelAndView.class).getBooking(21L)).buildAndExpand(42);
 
@@ -452,7 +466,7 @@ public class MvcUriComponentsBuilderTests {
 	}
 
 	@Test  // SPR-16710
-	public void fromMethodCallWithObjectReturnType() {
+	void fromMethodCallWithObjectReturnType() {
 		UriComponents uriComponents = fromMethodCall(
 				on(BookingControllerWithObject.class).getBooking(21L)).buildAndExpand(42);
 
@@ -460,7 +474,7 @@ public class MvcUriComponentsBuilderTests {
 	}
 
 	@Test  // SPR-16710
-	public void fromMethodCallWithStringReturnType() {
+	void fromMethodCallWithStringReturnType() {
 		assertThatIllegalStateException().isThrownBy(() -> {
 				UriComponents uriComponents = fromMethodCall(
 						on(BookingControllerWithString.class).getBooking(21L)).buildAndExpand(42);
@@ -469,7 +483,7 @@ public class MvcUriComponentsBuilderTests {
 	}
 
 	@Test  // SPR-16710
-	public void fromMethodNameWithStringReturnType() {
+	void fromMethodNameWithStringReturnType() {
 		UriComponents uriComponents = fromMethodName(
 				BookingControllerWithString.class, "getBooking", 21L).buildAndExpand(42);
 
@@ -477,7 +491,7 @@ public class MvcUriComponentsBuilderTests {
 	}
 
 	@Test  // gh-30210
-	public void fromMethodCallWithCharSequenceReturnType() {
+	void fromMethodCallWithCharSequenceReturnType() {
 		UriComponents uriComponents = fromMethodCall(
 				on(BookingControllerWithCharSequence.class).getBooking(21L)).buildAndExpand(42);
 
@@ -485,7 +499,7 @@ public class MvcUriComponentsBuilderTests {
 	}
 
 	@Test  // gh-30210
-	public void fromMethodCallWithJdbc30115ReturnType() {
+	void fromMethodCallWithJdbc30115ReturnType() {
 		UriComponents uriComponents = fromMethodCall(
 				on(BookingControllerWithJdbcSavepoint.class).getBooking(21L)).buildAndExpand(42);
 
@@ -516,7 +530,7 @@ public class MvcUriComponentsBuilderTests {
 	}
 
 	@Test  // SPR-17027
-	public void fromMappingNameWithEncoding() {
+	void fromMappingNameWithEncoding() {
 		initWebApplicationContext(WebConfig.class);
 
 		this.request.setServerName("example.org");
@@ -701,6 +715,11 @@ public class MvcUriComponentsBuilderTests {
 
 		@RequestMapping("/${method.test.mapping}/{id}/foo")
 		HttpEntity<Void> methodWithConfigurableMapping(@PathVariable String id) {
+			return null;
+		}
+
+		@RequestMapping("/#{systemProperties.customMapping}/{id}/foo")
+		HttpEntity<Void> methodWithSpEL(@PathVariable String id) {
 			return null;
 		}
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ import java.io.InputStreamReader;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentMap;
 
 import com.google.protobuf.Message;
 import com.google.protobuf.util.JsonFormat;
@@ -71,7 +70,7 @@ public class ProtobufJsonDecoder implements Decoder<Message> {
 	private static final List<MimeType> defaultMimeTypes = List.of(MediaType.APPLICATION_JSON,
 			new MediaType("application", "*+json"));
 
-	private static final ConcurrentMap<Class<?>, Method> methodCache = new ConcurrentReferenceHashMap<>();
+	private static final Map<Class<?>, Method> methodCache = new ConcurrentReferenceHashMap<>();
 
 	private final JsonFormat.Parser parser;
 
@@ -131,12 +130,19 @@ public class ProtobufJsonDecoder implements Decoder<Message> {
 	}
 
 	@Override
-	public Flux<Message> decode(Publisher<DataBuffer> inputStream, ResolvableType targetType, @Nullable MimeType mimeType, @Nullable Map<String, Object> hints) {
-		return Flux.error(new UnsupportedOperationException("Protobuf decoder does not support Flux, use Mono<List<...>> instead."));
+	public Flux<Message> decode(
+			Publisher<DataBuffer> inputStream, ResolvableType targetType, @Nullable MimeType mimeType,
+			@Nullable Map<String, Object> hints) {
+
+		return Flux.error(new UnsupportedOperationException(
+				"Protobuf decoder does not support Flux, use Mono<List<...>> instead."));
 	}
 
 	@Override
-	public Message decode(DataBuffer dataBuffer, ResolvableType targetType, @Nullable MimeType mimeType, @Nullable Map<String, Object> hints) throws DecodingException {
+	public Message decode(
+			DataBuffer dataBuffer, ResolvableType targetType, @Nullable MimeType mimeType,
+			@Nullable Map<String, Object> hints) throws DecodingException {
+
 		try {
 			Message.Builder builder = getMessageBuilder(targetType.toClass());
 			this.parser.merge(new InputStreamReader(dataBuffer.asInputStream()), builder);
@@ -154,7 +160,7 @@ public class ProtobufJsonDecoder implements Decoder<Message> {
 	 * Create a new {@code Message.Builder} instance for the given class.
 	 * <p>This method uses a ConcurrentHashMap for caching method lookups.
 	 */
-	private static Message.Builder getMessageBuilder(Class<?> clazz) throws Exception {
+	protected static Message.Builder getMessageBuilder(Class<?> clazz) throws Exception {
 		Method method = methodCache.get(clazz);
 		if (method == null) {
 			method = clazz.getMethod("newBuilder");
@@ -164,10 +170,14 @@ public class ProtobufJsonDecoder implements Decoder<Message> {
 	}
 
 	@Override
-	public Mono<Message> decodeToMono(Publisher<DataBuffer> inputStream, ResolvableType elementType, @Nullable MimeType mimeType, @Nullable Map<String, Object> hints) {
+	public Mono<Message> decodeToMono(
+			Publisher<DataBuffer> inputStream, ResolvableType elementType, @Nullable MimeType mimeType,
+			@Nullable Map<String, Object> hints) {
+
 		return DataBufferUtils.join(inputStream, this.maxMessageSize)
 				.map(dataBuffer -> decode(dataBuffer, elementType, mimeType, hints))
-				.onErrorMap(DataBufferLimitException.class, exc -> new DecodingException("Could not decode JSON as Protobuf message", exc));
+				.onErrorMap(DataBufferLimitException.class,
+						exc -> new DecodingException("Could not decode JSON as Protobuf message", exc));
 	}
 
 }

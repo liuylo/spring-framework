@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -95,7 +95,7 @@ import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.converter.HttpMessageNotWritableException;
 import org.springframework.http.converter.StringHttpMessageConverter;
-import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
 import org.springframework.http.converter.xml.Jaxb2RootElementHttpMessageConverter;
 import org.springframework.http.converter.xml.MarshallingHttpMessageConverter;
 import org.springframework.oxm.jaxb.Jaxb2Marshaller;
@@ -385,8 +385,8 @@ class ServletAnnotationControllerHandlerMethodTests extends AbstractServletHandl
 		assertThat(session).isNotNull();
 		assertThat(session.getAttribute("object1")).isNotNull();
 		assertThat(session.getAttribute("object2")).isNotNull();
-		assertThat(((Map) session.getAttribute("model"))).containsKey("object1");
-		assertThat(((Map) session.getAttribute("model"))).containsKey("object2");
+		assertThat((Map) session.getAttribute("model")).containsKey("object1");
+		assertThat((Map) session.getAttribute("model")).containsKey("object2");
 
 		request = new MockHttpServletRequest("POST", "/myPage");
 		request.setSession(session);
@@ -395,8 +395,8 @@ class ServletAnnotationControllerHandlerMethodTests extends AbstractServletHandl
 		assertThat(request.getAttribute("viewName")).isEqualTo("page2");
 		assertThat(session.getAttribute("object1")).isNotNull();
 		assertThat(session.getAttribute("object2")).isNotNull();
-		assertThat(((Map) session.getAttribute("model"))).containsKey("object1");
-		assertThat(((Map) session.getAttribute("model"))).containsKey("object2");
+		assertThat((Map) session.getAttribute("model")).containsKey("object1");
+		assertThat((Map) session.getAttribute("model")).containsKey("object2");
 	}
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
@@ -418,8 +418,8 @@ class ServletAnnotationControllerHandlerMethodTests extends AbstractServletHandl
 		assertThat(session).isNotNull();
 		assertThat(session.getAttribute("object1")).isNotNull();
 		assertThat(session.getAttribute("object2")).isNotNull();
-		assertThat(((Map) session.getAttribute("model"))).containsKey("object1");
-		assertThat(((Map) session.getAttribute("model"))).containsKey("object2");
+		assertThat((Map) session.getAttribute("model")).containsKey("object1");
+		assertThat((Map) session.getAttribute("model")).containsKey("object2");
 
 		request = new MockHttpServletRequest("POST", "/myPage");
 		request.setSession(session);
@@ -428,8 +428,8 @@ class ServletAnnotationControllerHandlerMethodTests extends AbstractServletHandl
 		assertThat(request.getAttribute("viewName")).isEqualTo("page2");
 		assertThat(session.getAttribute("object1")).isNotNull();
 		assertThat(session.getAttribute("object2")).isNotNull();
-		assertThat(((Map) session.getAttribute("model"))).containsKey("object1");
-		assertThat(((Map) session.getAttribute("model"))).containsKey("object2");
+		assertThat((Map) session.getAttribute("model")).containsKey("object1");
+		assertThat((Map) session.getAttribute("model")).containsKey("object2");
 	}
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
@@ -448,9 +448,9 @@ class ServletAnnotationControllerHandlerMethodTests extends AbstractServletHandl
 		assertThat(session).isNotNull();
 		assertThat(session.getAttribute("object1")).isNotNull();
 		assertThat(session.getAttribute("object2")).isNotNull();
-		assertThat(((Map) session.getAttribute("model"))).containsKey("object1");
-		assertThat(((Map) session.getAttribute("model"))).containsKey("object2");
-		assertThat(((Map) session.getAttribute("model"))).containsKey("testBeanList");
+		assertThat((Map) session.getAttribute("model")).containsKey("object1");
+		assertThat((Map) session.getAttribute("model")).containsKey("object2");
+		assertThat((Map) session.getAttribute("model")).containsKey("testBeanList");
 
 		request = new MockHttpServletRequest("POST", "/myPage");
 		request.setSession(session);
@@ -459,9 +459,9 @@ class ServletAnnotationControllerHandlerMethodTests extends AbstractServletHandl
 		assertThat(request.getAttribute("viewName")).isEqualTo("page2");
 		assertThat(session.getAttribute("object1")).isNotNull();
 		assertThat(session.getAttribute("object2")).isNotNull();
-		assertThat(((Map) session.getAttribute("model"))).containsKey("object1");
-		assertThat(((Map) session.getAttribute("model"))).containsKey("object2");
-		assertThat(((Map) session.getAttribute("model"))).containsKey("testBeanList");
+		assertThat((Map) session.getAttribute("model")).containsKey("object1");
+		assertThat((Map) session.getAttribute("model")).containsKey("object2");
+		assertThat((Map) session.getAttribute("model")).containsKey("testBeanList");
 	}
 
 	@SuppressWarnings({ "rawtypes", "unchecked" })
@@ -480,9 +480,9 @@ class ServletAnnotationControllerHandlerMethodTests extends AbstractServletHandl
 		assertThat(session).isNotNull();
 		assertThat(session.getAttribute("object1")).isNotNull();
 		assertThat(session.getAttribute("object2")).isNotNull();
-		assertThat(((Map) session.getAttribute("model"))).containsKey("object1");
-		assertThat(((Map) session.getAttribute("model"))).containsKey("object2");
-		assertThat(((Map) session.getAttribute("model"))).containsKey("testBeanList");
+		assertThat((Map) session.getAttribute("model")).containsKey("object1");
+		assertThat((Map) session.getAttribute("model")).containsKey("object2");
+		assertThat((Map) session.getAttribute("model")).containsKey("testBeanList");
 
 		request = new MockHttpServletRequest("POST", "/myPage");
 		request.setSession(session);
@@ -491,9 +491,9 @@ class ServletAnnotationControllerHandlerMethodTests extends AbstractServletHandl
 		assertThat(request.getAttribute("viewName")).isEqualTo("page2");
 		assertThat(session.getAttribute("object1")).isNotNull();
 		assertThat(session.getAttribute("object2")).isNotNull();
-		assertThat(((Map) session.getAttribute("model"))).containsKey("object1");
-		assertThat(((Map) session.getAttribute("model"))).containsKey("object2");
-		assertThat(((Map) session.getAttribute("model"))).containsKey("testBeanList");
+		assertThat((Map) session.getAttribute("model")).containsKey("object1");
+		assertThat((Map) session.getAttribute("model")).containsKey("object2");
+		assertThat((Map) session.getAttribute("model")).containsKey("testBeanList");
 	}
 
 	@PathPatternsParameterizedTest
@@ -1026,7 +1026,7 @@ class ServletAnnotationControllerHandlerMethodTests extends AbstractServletHandl
 		initDispatcherServlet(ResponseEntityController.class, usePathPatterns, wac -> {
 			RootBeanDefinition adapterDef = new RootBeanDefinition(RequestMappingHandlerAdapter.class);
 			List<HttpMessageConverter<?>> messageConverters = new ArrayList<>();
-			messageConverters.add(new MappingJackson2HttpMessageConverter());
+			messageConverters.add(new JacksonJsonHttpMessageConverter());
 			messageConverters.add(new Jaxb2RootElementHttpMessageConverter());
 			adapterDef.getPropertyValues().add("messageConverters", messageConverters);
 			wac.registerBeanDefinition("handlerAdapter", adapterDef);
@@ -1204,7 +1204,7 @@ class ServletAnnotationControllerHandlerMethodTests extends AbstractServletHandl
 	void produces(boolean usePathPatterns) throws Exception {
 		initDispatcherServlet(ProducesController.class, usePathPatterns, wac -> {
 			List<HttpMessageConverter<?>> converters = new ArrayList<>();
-			converters.add(new MappingJackson2HttpMessageConverter());
+			converters.add(new JacksonJsonHttpMessageConverter());
 			converters.add(new Jaxb2RootElementHttpMessageConverter());
 
 			RootBeanDefinition beanDef;
@@ -1563,7 +1563,7 @@ class ServletAnnotationControllerHandlerMethodTests extends AbstractServletHandl
 	}
 
 	@PathPatternsParameterizedTest
-	void testMatchWithoutMethodLevelPath(boolean usePathPatterns) throws Exception {
+	void matchWithoutMethodLevelPath(boolean usePathPatterns) throws Exception {
 		initDispatcherServlet(NoPathGetAndM2PostController.class, usePathPatterns);
 
 		MockHttpServletRequest request = new MockHttpServletRequest("GET", "/t1/m2");
@@ -1573,7 +1573,7 @@ class ServletAnnotationControllerHandlerMethodTests extends AbstractServletHandl
 	}
 
 	@PathPatternsParameterizedTest  // SPR-8536
-	void testHeadersCondition(boolean usePathPatterns) throws Exception {
+	void headersCondition(boolean usePathPatterns) throws Exception {
 		initDispatcherServlet(HeadersConditionController.class, usePathPatterns);
 
 		// No "Accept" header
@@ -2644,8 +2644,7 @@ class ServletAnnotationControllerHandlerMethodTests extends AbstractServletHandl
 		public String myOtherHandle(TB tb, BindingResult errors, ExtendedModelMap model, MySpecialArg arg) {
 			TestBean tbReal = (TestBean) tb;
 			tbReal.setName("myName");
-			boolean condition = model.get("ITestBean") instanceof DerivedTestBean;
-			assertThat(condition).isTrue();
+			assertThat(model.get("ITestBean")).isInstanceOf(DerivedTestBean.class);
 			assertThat(arg).isNotNull();
 			return super.myHandle(tbReal, errors, model);
 		}
@@ -3044,7 +3043,7 @@ class ServletAnnotationControllerHandlerMethodTests extends AbstractServletHandl
 
 		@RequestMapping("/myPath.do")
 		public void myHandle(GenericBean<?> gb, HttpServletResponse response) throws Exception {
-			response.getWriter().write(gb.getTestBeanSet().toString() + "-" +
+			response.getWriter().write(gb.getTestBeanSet() + "-" +
 					gb.getTestBeanSet().iterator().next().getClass().getName());
 		}
 	}
@@ -3889,7 +3888,7 @@ class ServletAnnotationControllerHandlerMethodTests extends AbstractServletHandl
 
 		@RequestMapping("/path")
 		public ModelAndView methodWithHttpStatus(MyEntity object) {
-			return new ModelAndView("view", HttpStatus.UNPROCESSABLE_ENTITY);
+			return new ModelAndView("view", HttpStatus.UNPROCESSABLE_CONTENT);
 		}
 
 		@RequestMapping("/redirect")
@@ -3904,7 +3903,7 @@ class ServletAnnotationControllerHandlerMethodTests extends AbstractServletHandl
 
 		@ExceptionHandler(TestException.class)
 		public ModelAndView handleException() {
-			return new ModelAndView("view", HttpStatus.UNPROCESSABLE_ENTITY);
+			return new ModelAndView("view", HttpStatus.UNPROCESSABLE_CONTENT);
 		}
 
 		@SuppressWarnings("serial")

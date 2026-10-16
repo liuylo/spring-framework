@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -70,6 +70,8 @@ public class AdvisedSupport extends ProxyConfig implements Advised {
 	/** use serialVersionUID from Spring 2.0 for interoperability. */
 	private static final long serialVersionUID = 2651364800145442165L;
 
+	private static final Advisor[] EMPTY_ADVISOR_ARRAY = new Advisor[0];
+
 
 	/**
 	 * Canonical TargetSource when there's no target, and behavior is
@@ -79,24 +81,28 @@ public class AdvisedSupport extends ProxyConfig implements Advised {
 
 
 	/** Package-protected to allow direct access for efficiency. */
+	@SuppressWarnings("serial")
 	TargetSource targetSource = EMPTY_TARGET_SOURCE;
 
 	/** Whether the Advisors are already filtered for the specific target class. */
 	private boolean preFiltered = false;
 
 	/** The AdvisorChainFactory to use. */
+	@SuppressWarnings("serial")
 	private AdvisorChainFactory advisorChainFactory = DefaultAdvisorChainFactory.INSTANCE;
 
 	/**
 	 * Interfaces to be implemented by the proxy. Held in List to keep the order
 	 * of registration, to create JDK proxy with specified order of interfaces.
 	 */
+	@SuppressWarnings("serial")
 	private List<Class<?>> interfaces = new ArrayList<>();
 
 	/**
 	 * List of Advisors. If an Advice is added, it will be wrapped
 	 * in an Advisor before being added to this List.
 	 */
+	@SuppressWarnings("serial")
 	private List<Advisor> advisors = new ArrayList<>();
 
 	/**
@@ -105,6 +111,7 @@ public class AdvisedSupport extends ProxyConfig implements Advised {
 	 * @since 6.0.10
 	 * @see #reduceToAdvisorKey
 	 */
+	@SuppressWarnings("serial")
 	private List<Advisor> advisorKey = this.advisors;
 
 	/** Cache with Method as key and advisor chain List as value. */
@@ -283,7 +290,7 @@ public class AdvisedSupport extends ProxyConfig implements Advised {
 
 	@Override
 	public final Advisor[] getAdvisors() {
-		return this.advisors.toArray(new Advisor[0]);
+		return this.advisors.toArray(EMPTY_ADVISOR_ARRAY);
 	}
 
 	@Override
@@ -724,7 +731,7 @@ public class AdvisedSupport extends ProxyConfig implements Advised {
 		}
 
 		@Override
-		public boolean equals(Object other) {
+		public boolean equals(@Nullable Object other) {
 			return (this == other || (other instanceof AdvisorKeyEntry that &&
 					this.adviceType == that.adviceType &&
 					ObjectUtils.nullSafeEquals(this.classFilterKey, that.classFilterKey) &&

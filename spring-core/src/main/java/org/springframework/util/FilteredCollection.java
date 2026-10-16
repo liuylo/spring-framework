@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,15 +21,18 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.function.Predicate;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * Collection that filters out values that do not match a predicate.
  * This type is used by {@link CompositeMap}.
  *
  * @author Arjen Poutsma
+ * @author Yanming Zhou
  * @since 6.2
  * @param <E> the type of elements maintained by this collection
  */
-class FilteredCollection<E> extends AbstractCollection<E> {
+class FilteredCollection<E extends @Nullable Object> extends AbstractCollection<E> {
 
 	private final Collection<E> delegate;
 

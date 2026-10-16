@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -127,20 +127,21 @@ public class MySQLMaxValueIncrementer extends AbstractColumnMaxValueIncrementer 
 			Connection con = null;
 			Statement stmt = null;
 			boolean mustRestoreAutoCommit = false;
+			DataSource dataSource = obtainDataSource();
 			try {
 				if (this.useNewConnection) {
-					con = getDataSource().getConnection();
+					con = dataSource.getConnection();
 					if (con.getAutoCommit()) {
 						mustRestoreAutoCommit = true;
 						con.setAutoCommit(false);
 					}
 				}
 				else {
-					con = DataSourceUtils.getConnection(getDataSource());
+					con = DataSourceUtils.getConnection(dataSource);
 				}
 				stmt = con.createStatement();
 				if (!this.useNewConnection) {
-					DataSourceUtils.applyTransactionTimeout(stmt, getDataSource());
+					DataSourceUtils.applyTransactionTimeout(stmt, dataSource);
 				}
 				// Increment the sequence column...
 				String columnName = getColumnName();
@@ -178,14 +179,17 @@ public class MySQLMaxValueIncrementer extends AbstractColumnMaxValueIncrementer 
 								con.setAutoCommit(true);
 							}
 						}
-						catch (SQLException ignore) {
+						catch (SQLException ex) {
+							this.nextId = this.maxId;
 							throw new DataAccessResourceFailureException(
-									"Unable to commit new sequence value changes for " + getIncrementerName());
+									"Unable to commit new sequence value changes for " + getIncrementerName(), ex);
 						}
-						JdbcUtils.closeConnection(con);
+						finally {
+							JdbcUtils.closeConnection(con);
+						}
 					}
 					else {
-						DataSourceUtils.releaseConnection(con, getDataSource());
+						DataSourceUtils.releaseConnection(con, dataSource);
 					}
 				}
 			}

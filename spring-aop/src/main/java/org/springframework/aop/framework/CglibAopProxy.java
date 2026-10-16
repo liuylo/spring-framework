@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ import org.springframework.aop.AopInvocationException;
 import org.springframework.aop.RawTargetAccess;
 import org.springframework.aop.TargetSource;
 import org.springframework.aop.support.AopUtils;
+import org.springframework.aot.AotDetector;
 import org.springframework.cglib.core.ClassLoaderAwareGeneratorStrategy;
 import org.springframework.cglib.core.CodeGenerationException;
 import org.springframework.cglib.core.GeneratorStrategy;
@@ -50,7 +51,6 @@ import org.springframework.cglib.proxy.MethodProxy;
 import org.springframework.cglib.proxy.NoOp;
 import org.springframework.cglib.transform.impl.UndeclaredThrowableStrategy;
 import org.springframework.core.KotlinDetector;
-import org.springframework.core.MethodParameter;
 import org.springframework.core.SmartClassLoader;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
@@ -95,9 +95,7 @@ class CglibAopProxy implements AopProxy, Serializable {
 	private static final int INVOKE_HASHCODE = 6;
 
 
-	private static final String COROUTINES_FLOW_CLASS_NAME = "kotlinx.coroutines.flow.Flow";
-
-	private static final boolean coroutinesReactorPresent = ClassUtils.isPresent(
+	private static final boolean COROUTINES_REACTOR_PRESENT = ClassUtils.isPresent(
 			"kotlinx.coroutines.reactor.MonoKt", CglibAopProxy.class.getClassLoader());
 
 	private static final GeneratorStrategy undeclaredThrowableStrategy =
@@ -203,7 +201,7 @@ class CglibAopProxy implements AopProxy, Serializable {
 			enhancer.setSuperclass(proxySuperClass);
 			enhancer.setInterfaces(AopProxyUtils.completeProxiedInterfaces(this.advised));
 			enhancer.setNamingPolicy(SpringNamingPolicy.INSTANCE);
-			enhancer.setAttemptLoad(true);
+			enhancer.setAttemptLoad(enhancer.getUseCache() && AotDetector.useGeneratedArtifacts());
 			enhancer.setStrategy(KotlinDetector.isKotlinType(proxySuperClass) ?
 					new ClassLoaderAwareGeneratorStrategy(classLoader) :
 					new ClassLoaderAwareGeneratorStrategy(classLoader, undeclaredThrowableStrategy)
@@ -289,9 +287,20 @@ class CglibAopProxy implements AopProxy, Serializable {
 				int mod = method.getModifiers();
 				if (!Modifier.isStatic(mod) && !Modifier.isPrivate(mod)) {
 					if (Modifier.isFinal(mod)) {
-						if (logger.isWarnEnabled() && implementsInterface(method, ifcs)) {
-							logger.warn("Unable to proxy interface-implementing method [" + method + "] because " +
-									"it is marked as final, consider using interface-based JDK proxies instead.");
+						if (logger.isWarnEnabled() && Modifier.isPublic(mod)) {
+							if (implementsInterface(method, ifcs)) {
+								// Final methods inherited from configuration callback interfaces are
+								// typically driven by the container itself rather than by user code, so
+								// logging a warning about CGLIB being unable to advise them is misleading noise.
+								if (!implementsOnlyConfigurationCallbackInterfaces(method, ifcs)) {
+									logger.warn("Unable to proxy interface-implementing method [" + method + "] because " +
+											"it is marked as final, consider using interface-based JDK proxies instead.");
+								}
+							}
+							else {
+								logger.warn("Public final method [" + method + "] cannot get proxied via CGLIB, " +
+										"consider removing the final marker or using interface-based JDK proxies.");
+							}
 						}
 						if (logger.isDebugEnabled()) {
 							logger.debug("Final method [" + method + "] cannot get proxied via CGLIB: " +
@@ -409,6 +418,25 @@ class CglibAopProxy implements AopProxy, Serializable {
 	}
 
 	/**
+	 * Check whether every interface that declares the given method is a
+	 * configuration callback interface.
+	 * @since 7.1
+	 * @see AopProxyUtils#isConfigurationCallbackInterface(Class)
+	 */
+	static boolean implementsOnlyConfigurationCallbackInterfaces(Method method, Set<Class<?>> ifcs) {
+		boolean matched = false;
+		for (Class<?> ifc : ifcs) {
+			if (ClassUtils.hasMethod(ifc, method)) {
+				if (!AopProxyUtils.isConfigurationCallbackInterface(ifc)) {
+					return false;
+				}
+				matched = true;
+			}
+		}
+		return matched;
+	}
+
+	/**
 	 * Process a return value. Wraps a return of {@code this} if necessary to be the
 	 * {@code proxy} and also verifies that {@code null} is not returned as a primitive.
 	 * Also takes care of the conversion from {@code Mono} to Kotlin Coroutines if needed.
@@ -428,10 +456,8 @@ class CglibAopProxy implements AopProxy, Serializable {
 			throw new AopInvocationException(
 					"Null return value from advice does not match primitive return type for: " + method);
 		}
-		if (coroutinesReactorPresent && KotlinDetector.isSuspendingFunction(method)) {
-			return COROUTINES_FLOW_CLASS_NAME.equals(new MethodParameter(method, -1).getParameterType().getName()) ?
-					CoroutinesUtils.asFlow(returnValue) :
-					CoroutinesUtils.awaitSingleOrNull(returnValue, arguments[arguments.length - 1]);
+		if (COROUTINES_REACTOR_PRESENT && KotlinDetector.isSuspendingFunction(method)) {
+			return CoroutinesUtils.adaptReturnValue(method, returnValue, arguments[arguments.length - 1]);
 		}
 		return returnValue;
 	}
@@ -687,7 +713,7 @@ class CglibAopProxy implements AopProxy, Serializable {
 			Object target = null;
 			TargetSource targetSource = this.advised.getTargetSource();
 			try {
-				if (this.advised.exposeProxy) {
+				if (this.advised.isExposeProxy()) {
 					// Make invocation available if necessary.
 					oldProxy = AopContext.setCurrentProxy(proxy);
 					setProxyContext = true;
@@ -704,7 +730,7 @@ class CglibAopProxy implements AopProxy, Serializable {
 					// Note that the final invoker must be an InvokerInterceptor, so we know
 					// it does nothing but a reflective operation on the target, and no hot
 					// swapping or fancy proxying.
-					Object[] argsToUse = AopProxyUtils.adaptArgumentsIfNecessary(method, args);
+					@Nullable Object[] argsToUse = AopProxyUtils.adaptArgumentsIfNecessary(method, args);
 					retVal = AopUtils.invokeJoinpointUsingReflection(target, method, argsToUse);
 				}
 				else {

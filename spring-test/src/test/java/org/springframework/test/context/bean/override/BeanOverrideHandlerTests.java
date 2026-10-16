@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.lang.reflect.Field;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.function.Consumer;
@@ -30,6 +29,7 @@ import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.test.context.bean.override.DummyBean.DummyBeanOverrideProcessor;
 import org.springframework.test.context.bean.override.DummyBean.DummyBeanOverrideProcessor.DummyBeanOverrideHandler;
 import org.springframework.test.context.bean.override.example.CustomQualifier;
 import org.springframework.test.context.bean.override.example.ExampleService;
@@ -51,14 +51,14 @@ class BeanOverrideHandlerTests {
 
 	@Test
 	void forTestClassWithSingleField() {
-		List<BeanOverrideHandler> handlers = BeanOverrideHandler.forTestClass(SingleAnnotation.class);
+		List<BeanOverrideHandler> handlers = BeanOverrideUtils.findHandlersForFields(SingleAnnotation.class);
 		assertThat(handlers).singleElement().satisfies(hasBeanOverrideHandler(
 				field(SingleAnnotation.class, "message"), String.class, null));
 	}
 
 	@Test
 	void forTestClassWithMultipleFields() {
-		List<BeanOverrideHandler> handlers = BeanOverrideHandler.forTestClass(MultipleAnnotations.class);
+		List<BeanOverrideHandler> handlers = BeanOverrideUtils.findHandlersForFields(MultipleAnnotations.class);
 		assertThat(handlers).hasSize(2)
 				.anySatisfy(hasBeanOverrideHandler(
 						field(MultipleAnnotations.class, "message"), String.class, null))
@@ -68,7 +68,7 @@ class BeanOverrideHandlerTests {
 
 	@Test
 	void forTestClassWithMultipleFieldsWithIdenticalMetadata() {
-		List<BeanOverrideHandler> handlers = BeanOverrideHandler.forTestClass(MultipleAnnotationsDuplicate.class);
+		List<BeanOverrideHandler> handlers = BeanOverrideUtils.findHandlersForFields(MultipleAnnotationsDuplicate.class);
 		assertThat(handlers).hasSize(2)
 				.anySatisfy(hasBeanOverrideHandler(
 						field(MultipleAnnotationsDuplicate.class, "message1"), String.class, "messageBean"))
@@ -81,7 +81,7 @@ class BeanOverrideHandlerTests {
 	void forTestClassWithCompetingBeanOverrideAnnotationsOnSameField() {
 		Field faultyField = field(MultipleAnnotationsOnSameField.class, "message");
 		assertThatIllegalStateException()
-				.isThrownBy(() -> BeanOverrideHandler.forTestClass(MultipleAnnotationsOnSameField.class))
+				.isThrownBy(() -> BeanOverrideUtils.findHandlersForFields(MultipleAnnotationsOnSameField.class))
 				.withMessageStartingWith("Multiple @BeanOverride annotations found")
 				.withMessageContaining(faultyField.toString());
 	}
@@ -90,7 +90,7 @@ class BeanOverrideHandlerTests {
 	void forTestClassWithStaticBeanOverrideField() {
 		Field staticField = field(StaticBeanOverrideField.class, "message");
 		assertThatIllegalStateException()
-				.isThrownBy(() -> BeanOverrideHandler.forTestClass(StaticBeanOverrideField.class))
+				.isThrownBy(() -> BeanOverrideUtils.findHandlersForFields(StaticBeanOverrideField.class))
 				.withMessage("@BeanOverride field must not be static: " + staticField);
 	}
 
@@ -116,7 +116,7 @@ class BeanOverrideHandlerTests {
 	}
 
 	@Test
-	void isEqualToWithSameMetadataAndBeanNames() {
+	void isEqualToWithSameMetadataAndSameBeanNames() {
 		BeanOverrideHandler handler1 = createBeanOverrideHandler(field(ConfigA.class, "noQualifier"), "testBean");
 		BeanOverrideHandler handler2 = createBeanOverrideHandler(field(ConfigA.class, "noQualifier"), "testBean");
 		assertThat(handler1).isEqualTo(handler2);
@@ -124,10 +124,29 @@ class BeanOverrideHandlerTests {
 	}
 
 	@Test
-	void isNotEqualToWithSameMetadataAndDifferentBeaName() {
+	void isNotEqualToWithSameMetadataButDifferentBeanNames() {
 		BeanOverrideHandler handler1 = createBeanOverrideHandler(field(ConfigA.class, "noQualifier"), "testBean");
 		BeanOverrideHandler handler2 = createBeanOverrideHandler(field(ConfigA.class, "noQualifier"), "testBean2");
 		assertThat(handler1).isNotEqualTo(handler2);
+		assertThat(handler1).doesNotHaveSameHashCodeAs(handler2);
+	}
+
+	@Test
+	void isEqualToWithSameMetadataSameBeanNamesAndSameContextNames() {
+		Class<?> testClass = MultipleAnnotationsWithSameNameInDifferentContext.class;
+		BeanOverrideHandler handler1 = createBeanOverrideHandler(testClass, field(testClass, "parentMessageBean"));
+		BeanOverrideHandler handler2 = createBeanOverrideHandler(testClass, field(testClass, "parentMessageBean2"));
+		assertThat(handler1).isEqualTo(handler2);
+		assertThat(handler1).hasSameHashCodeAs(handler2);
+	}
+
+	@Test
+	void isEqualToWithSameMetadataAndSameBeanNamesButDifferentContextNames() {
+		Class<?> testClass = MultipleAnnotationsWithSameNameInDifferentContext.class;
+		BeanOverrideHandler handler1 = createBeanOverrideHandler(testClass, field(testClass, "parentMessageBean"));
+		BeanOverrideHandler handler2 = createBeanOverrideHandler(testClass, field(testClass, "childMessageBean"));
+		assertThat(handler1).isNotEqualTo(handler2);
+		assertThat(handler1).doesNotHaveSameHashCodeAs(handler2);
 	}
 
 	@Test
@@ -160,7 +179,7 @@ class BeanOverrideHandlerTests {
 		Field field2 = field(ConfigB.class, "qualifiedDummyBean");
 
 		// Prerequisite
-		assertThat(Arrays.equals(field1.getAnnotations(), field2.getAnnotations())).isFalse();
+		assertThat(field1.getAnnotations()).isNotEqualTo(field2.getAnnotations());
 
 		BeanOverrideHandler handler1 = createBeanOverrideHandler(field1);
 		BeanOverrideHandler handler2 = createBeanOverrideHandler(field2);
@@ -173,6 +192,7 @@ class BeanOverrideHandlerTests {
 		BeanOverrideHandler handler1 = createBeanOverrideHandler(field(ConfigA.class, "directQualifier"));
 		BeanOverrideHandler handler2 = createBeanOverrideHandler(field(ConfigA.class, "differentDirectQualifier"));
 		assertThat(handler1).isNotEqualTo(handler2);
+		assertThat(handler1).doesNotHaveSameHashCodeAs(handler2);
 	}
 
 	@Test
@@ -180,6 +200,7 @@ class BeanOverrideHandlerTests {
 		BeanOverrideHandler handler1 = createBeanOverrideHandler(field(ConfigA.class, "directQualifier"));
 		BeanOverrideHandler handler2 = createBeanOverrideHandler(field(ConfigA.class, "customQualifier"));
 		assertThat(handler1).isNotEqualTo(handler2);
+		assertThat(handler1).doesNotHaveSameHashCodeAs(handler2);
 	}
 
 	@Test
@@ -187,6 +208,7 @@ class BeanOverrideHandlerTests {
 		BeanOverrideHandler handler1 = createBeanOverrideHandler(field(ConfigA.class, "noQualifier"));
 		BeanOverrideHandler handler2 = createBeanOverrideHandler(field(ConfigB.class, "example"));
 		assertThat(handler1).isNotEqualTo(handler2);
+		assertThat(handler1).doesNotHaveSameHashCodeAs(handler2);
 	}
 
 	private static BeanOverrideHandler createBeanOverrideHandler(Field field) {
@@ -194,7 +216,11 @@ class BeanOverrideHandlerTests {
 	}
 
 	private static BeanOverrideHandler createBeanOverrideHandler(Field field, @Nullable String name) {
-		return new DummyBeanOverrideHandler(field, field.getType(), name, BeanOverrideStrategy.REPLACE);
+		return new DummyBeanOverrideHandler(field, field.getType(), name, "", BeanOverrideStrategy.REPLACE);
+	}
+
+	private static BeanOverrideHandler createBeanOverrideHandler(Class<?> testClass, Field field) {
+		return new DummyBeanOverrideProcessor().createHandler(field.getAnnotation(DummyBean.class), testClass, field);
 	}
 
 	private static Field field(Class<?> target, String fieldName) {
@@ -232,6 +258,18 @@ class BeanOverrideHandlerTests {
 
 		@DummyBean
 		Integer counter;
+	}
+
+	static class MultipleAnnotationsWithSameNameInDifferentContext {
+
+		@DummyBean(beanName = "messageBean", contextName = "parent")
+		String parentMessageBean;
+
+		@DummyBean(beanName = "messageBean", contextName = "parent")
+		String parentMessageBean2;
+
+		@DummyBean(beanName = "messageBean", contextName = "child")
+		String childMessageBean;
 	}
 
 	static class MultipleAnnotationsDuplicate {

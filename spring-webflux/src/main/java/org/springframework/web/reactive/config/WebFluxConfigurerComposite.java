@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -88,6 +88,13 @@ public class WebFluxConfigurerComposite implements WebFluxConfigurer {
 	}
 
 	@Override
+	public void configureApiVersioning(ApiVersionConfigurer configurer) {
+		for (WebFluxConfigurer delegate : this.delegates) {
+			delegate.configureApiVersioning(configurer);
+		}
+	}
+
+	@Override
 	public void configurePathMatching(PathMatchConfigurer configurer) {
 		this.delegates.forEach(delegate -> delegate.configurePathMatching(configurer));
 	}
@@ -119,7 +126,7 @@ public class WebFluxConfigurerComposite implements WebFluxConfigurer {
 		return createSingleBean(WebFluxConfigurer::getWebSocketService, WebSocketService.class);
 	}
 
-	private <T> @Nullable T createSingleBean(Function<WebFluxConfigurer, T> factory, Class<T> beanType) {
+	private <T> @Nullable T createSingleBean(Function<WebFluxConfigurer, @Nullable T> factory, Class<T> beanType) {
 		List<T> result = this.delegates.stream().map(factory).filter(Objects::nonNull).toList();
 		if (result.isEmpty()) {
 			return null;

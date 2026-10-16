@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
  * @author Juergen Hoeller
  * @author Sam Brannen
  * @author Phillip Webb
+ * @author Sebastien Deleuze
  */
 class MethodParameterTests {
 
@@ -51,7 +52,11 @@ class MethodParameterTests {
 
 	private MethodParameter jspecifyNullableParameter;
 
+	private MethodParameter jspecifyNonNullParameter;
+
 	private MethodParameter springNullableParameter;
+
+	private MethodParameter springNonNullParameter;
 
 
 	@BeforeEach
@@ -60,10 +65,12 @@ class MethodParameterTests {
 		stringParameter = new MethodParameter(method, 0);
 		longParameter = new MethodParameter(method, 1);
 		intReturnType = new MethodParameter(method, -1);
-		Method jspecifyNullableMethod = getClass().getMethod("jspecifyNullableMethod", String.class);
+		Method jspecifyNullableMethod = getClass().getMethod("jspecifyNullableMethod", String.class, String.class);
 		jspecifyNullableParameter = new MethodParameter(jspecifyNullableMethod, 0);
-		Method springNullableMethod = getClass().getMethod("springNullableMethod", String.class);
+		jspecifyNonNullParameter = new MethodParameter(jspecifyNullableMethod, 1);
+		Method springNullableMethod = getClass().getMethod("springNullableMethod", String.class, String.class);
 		springNullableParameter = new MethodParameter(springNullableMethod, 0);
+		springNonNullParameter = new MethodParameter(springNullableMethod, 1);
 	}
 
 
@@ -89,7 +96,7 @@ class MethodParameterTests {
 	}
 
 	@Test
-	void testHashCode() throws NoSuchMethodException {
+	void hashCodeBehavior() throws NoSuchMethodException {
 		assertThat(stringParameter.hashCode()).isEqualTo(stringParameter.hashCode());
 		assertThat(longParameter.hashCode()).isEqualTo(longParameter.hashCode());
 		assertThat(intReturnType.hashCode()).isEqualTo(intReturnType.hashCode());
@@ -102,7 +109,7 @@ class MethodParameterTests {
 
 	@Test
 	@SuppressWarnings("deprecation")
-	void testFactoryMethods() {
+	void factoryMethods() {
 		assertThat(MethodParameter.forMethodOrConstructor(method, 0)).isEqualTo(stringParameter);
 		assertThat(MethodParameter.forMethodOrConstructor(method, 1)).isEqualTo(longParameter);
 
@@ -246,8 +253,19 @@ class MethodParameterTests {
 	}
 
 	@Test
+	void parameterNames() {
+		assertThat(stringParameter.getParameterName()).isEqualTo("str");
+		assertThat(longParameter.getParameterName()).isEqualTo("lng");
+	}
+
+	@Test
 	void jspecifyNullableParameter() {
 		assertThat(jspecifyNullableParameter.isOptional()).isTrue();
+	}
+
+	@Test
+	void jspecifyNonNullParameter() {
+		assertThat(jspecifyNonNullParameter.isOptional()).isFalse();
 	}
 
 	@Test
@@ -255,18 +273,24 @@ class MethodParameterTests {
 		assertThat(springNullableParameter.isOptional()).isTrue();
 	}
 
-	public int method(String p1, long p2) {
+	@Test
+	void springNonNullParameter() {
+		assertThat(springNonNullParameter.isOptional()).isFalse();
+	}
+
+
+	public int method(String str, long lng) {
 		return 42;
 	}
 
-	public @org.jspecify.annotations.Nullable String jspecifyNullableMethod(@org.jspecify.annotations.Nullable String parameter) {
-		return parameter;
+	public @org.jspecify.annotations.Nullable String jspecifyNullableMethod(@org.jspecify.annotations.Nullable String nullableParameter, String nonNullParameter) {
+		return nullableParameter;
 	}
 
 	@SuppressWarnings("deprecation")
 	@org.springframework.lang.Nullable
-	public String springNullableMethod(@org.springframework.lang.Nullable String parameter) {
-		return parameter;
+	public String springNullableMethod(@org.springframework.lang.Nullable String nullableParameter, String nonNullParameter) {
+		return nullableParameter;
 	}
 
 	@SuppressWarnings("unused")

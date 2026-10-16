@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,6 +44,7 @@ public class Assign extends SpelNodeImpl {
 		if (!state.getEvaluationContext().isAssignmentEnabled()) {
 			throw new SpelEvaluationException(getStartPosition(), SpelMessage.NOT_ASSIGNABLE, toStringAST());
 		}
+		state.trackOperation();
 		return this.children[0].setValueInternal(state, () -> this.children[1].getValueInternal(state));
 	}
 

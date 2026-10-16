@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2021 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package org.springframework.jndi.support;
 
+import java.lang.reflect.Type;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -34,6 +35,7 @@ import org.springframework.beans.factory.BeanNotOfRequiredTypeException;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.NoUniqueBeanDefinitionException;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.ResolvableType;
 import org.springframework.jndi.JndiLocatorSupport;
 import org.springframework.jndi.TypeMismatchNamingException;
@@ -58,6 +60,7 @@ import org.springframework.jndi.TypeMismatchNamingException;
  * in particular if BeanFactory-style type checking is required.
  *
  * @author Juergen Hoeller
+ * @author Yanming Zhou
  * @since 2.5
  * @see org.springframework.beans.factory.support.DefaultListableBeanFactory
  * @see org.springframework.context.annotation.CommonAnnotationBeanPostProcessor
@@ -132,6 +135,17 @@ public class SimpleJndiBeanFactory extends JndiLocatorSupport implements BeanFac
 	}
 
 	@Override
+	@SuppressWarnings("unchecked")
+	public <T> T getBean(String name, ParameterizedTypeReference<T> typeReference) throws BeansException {
+		Object bean = getBean(name);
+		Type requiredType = typeReference.getType();
+		if (!ResolvableType.forType(requiredType).isInstance(bean)) {
+			throw new BeanNotOfRequiredTypeException(name, requiredType, bean.getClass());
+		}
+		return (T) bean;
+	}
+
+	@Override
 	public Object getBean(String name, @Nullable Object @Nullable ... args) throws BeansException {
 		if (args != null) {
 			throw new UnsupportedOperationException(
@@ -162,7 +176,7 @@ public class SimpleJndiBeanFactory extends JndiLocatorSupport implements BeanFac
 				return getBean(requiredType);
 			}
 			@Override
-			public T getObject(Object... args) throws BeansException {
+			public T getObject(@Nullable Object... args) throws BeansException {
 				return getBean(requiredType, args);
 			}
 			@Override
@@ -193,6 +207,12 @@ public class SimpleJndiBeanFactory extends JndiLocatorSupport implements BeanFac
 	public <T> ObjectProvider<T> getBeanProvider(ResolvableType requiredType) {
 		throw new UnsupportedOperationException(
 				"SimpleJndiBeanFactory does not support resolution by ResolvableType");
+	}
+
+	@Override
+	public <T> ObjectProvider<T> getBeanProvider(ParameterizedTypeReference<T> requiredType) {
+		throw new UnsupportedOperationException(
+				"SimpleJndiBeanFactory does not support resolution by ParameterizedTypeReference");
 	}
 
 	@Override

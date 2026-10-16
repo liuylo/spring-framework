@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package org.springframework.beans;
 
 import java.beans.PropertyDescriptor;
 import java.lang.reflect.Method;
+import java.util.Objects;
 
 import org.apache.commons.logging.LogFactory;
 import org.jspecify.annotations.Nullable;
@@ -189,7 +190,7 @@ public class BeanWrapperImpl extends AbstractNestablePropertyAccessor implements
 	}
 
 	@Override
-	protected @Nullable BeanPropertyHandler getLocalPropertyHandler(String propertyName) {
+	protected @Nullable PropertyHandler getLocalPropertyHandler(String propertyName) {
 		PropertyDescriptor pd = getCachedIntrospectionResults().getPropertyDescriptor(propertyName);
 		return (pd != null ? new BeanPropertyHandler((GenericTypeAwarePropertyDescriptor) pd) : null);
 	}
@@ -213,9 +214,17 @@ public class BeanWrapperImpl extends AbstractNestablePropertyAccessor implements
 
 	@Override
 	public PropertyDescriptor getPropertyDescriptor(String propertyName) throws InvalidPropertyException {
-		BeanWrapperImpl nestedBw = (BeanWrapperImpl) getPropertyAccessorForPropertyPath(propertyName);
-		String finalPath = getFinalPath(nestedBw, propertyName);
-		PropertyDescriptor pd = nestedBw.getCachedIntrospectionResults().getPropertyDescriptor(finalPath);
+		ResolvedProperty resolved;
+		try {
+			resolved = resolvePropertyPath(propertyName);
+		}
+		catch (InvalidPropertyPathException ex) {
+			throw new InvalidPropertyException(
+					getRootClass(), getNestedPath() + propertyName, Objects.requireNonNull(ex.getMessage()), ex);
+		}
+		BeanWrapperImpl nestedBw = (BeanWrapperImpl) resolved.accessor();
+		PropertyDescriptor pd = nestedBw.getCachedIntrospectionResults()
+				.getPropertyDescriptor(resolved.segment().toCanonicalName());
 		if (pd == null) {
 			throw new InvalidPropertyException(getRootClass(), getNestedPath() + propertyName,
 					"No property '" + propertyName + "' found");

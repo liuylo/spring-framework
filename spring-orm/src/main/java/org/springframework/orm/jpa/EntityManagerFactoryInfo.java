@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2020 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -82,6 +82,16 @@ public interface EntityManagerFactoryInfo {
 	 * or simply defaulting to {@code jakarta.persistence.EntityManager}.
 	 */
 	@Nullable Class<? extends EntityManager> getEntityManagerInterface();
+
+	/**
+	 * Return the (potentially vendor-specific) EntityAgent interface
+	 * that this factory's EntityAgents will implement.
+	 * <p>A {@code null} return value suggests that autodetection is supposed
+	 * to happen: either based on a target {@code EntityAgent} instance
+	 * or simply defaulting to {@code jakarta.persistence.EntityAgent}.
+	 * @since 7.1
+	 */
+	@Nullable Class<?> getEntityAgentInterface();
 
 	/**
 	 * Return the vendor-specific JpaDialect implementation for this

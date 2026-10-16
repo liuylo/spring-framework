@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpRequest;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpRequest;
 import org.springframework.http.client.ClientHttpRequestExecution;
@@ -44,11 +45,12 @@ import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.http.client.observation.ClientRequestObservationContext;
 import org.springframework.http.client.observation.ClientRequestObservationConvention;
 import org.springframework.http.client.observation.DefaultClientRequestObservationConvention;
-import org.springframework.http.converter.HttpMessageConverter;
+import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.util.StreamUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.mock;
@@ -70,8 +72,6 @@ class RestClientObservationTests {
 
 	private final ClientHttpResponse response = mock();
 
-	private final HttpMessageConverter<String> converter = mock();
-
 	private RestClient client;
 
 
@@ -84,7 +84,8 @@ class RestClientObservationTests {
 	RestClient.Builder createBuilder() {
 		return RestClient.builder()
 				.baseUrl("https://example.com/base")
-				.messageConverters(converters -> converters.add(0, this.converter))
+				.configureMessageConverters(converters -> converters.disableDefaults()
+						.addCustomConverter(new StringHttpMessageConverter()))
 				.requestFactory(this.requestFactory)
 				.observationRegistry(this.observationRegistry);
 	}
@@ -137,15 +138,15 @@ class RestClientObservationTests {
 
 	@Test
 	void shouldContributeServerErrorOutcome() throws Exception {
-		ResponseErrorHandler errorHandler = mock();
-		given(errorHandler.hasError(response)).willReturn(true);
-		this.client = this.client.mutate().defaultStatusHandler(errorHandler).build();
+		RestClient.ResponseSpec.ErrorHandler errorHandler = mock();
+		this.client = this.client.mutate()
+				.defaultStatusHandler(HttpStatusCode::is5xxServerError, errorHandler).build();
 
 		String url = "https://example.org";
 		mockSentRequest(GET, url);
 		mockResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR);
 		willThrow(new HttpServerErrorException(HttpStatus.INTERNAL_SERVER_ERROR))
-				.given(errorHandler).handleError(URI.create(url), GET, response);
+				.given(errorHandler).handle(any(), any());
 
 		assertThatExceptionOfType(HttpServerErrorException.class).isThrownBy(() ->
 				client.get().uri(url).retrieve().toBodilessEntity());
@@ -203,7 +204,7 @@ class RestClientObservationTests {
 		assertThatExceptionOfType(RestClientException.class).isThrownBy(() ->
 				client.get().uri(url).retrieve().body(User.class));
 
-		assertThatHttpObservation().hasLowCardinalityKeyValue("exception", "RestClientException");
+		assertThatHttpObservation().hasLowCardinalityKeyValue("exception", "UnknownContentTypeException");
 	}
 
 	@Test
@@ -259,7 +260,8 @@ class RestClientObservationTests {
 	@Test
 	void openScopeWithObservation() throws Exception {
 		this.client = createBuilder().requestInterceptor(new ObservationContextInterceptor(this.observationRegistry))
-				.defaultStatusHandler(new ObservationErrorHandler(this.observationRegistry)).build();
+				.defaultStatusHandler(HttpStatusCode::is2xxSuccessful, new ObservationErrorHandler(this.observationRegistry))
+				.build();
 		mockSentRequest(GET, "https://example.org");
 		mockResponseStatus(HttpStatus.OK);
 		mockResponseBody("Hello World", MediaType.TEXT_PLAIN);
@@ -336,7 +338,7 @@ class RestClientObservationTests {
 		}
 	}
 
-	static class ObservationErrorHandler implements ResponseErrorHandler {
+	static class ObservationErrorHandler implements RestClient.ResponseSpec.ErrorHandler {
 
 		final TestObservationRegistry observationRegistry;
 
@@ -345,14 +347,10 @@ class RestClientObservationTests {
 		}
 
 		@Override
-		public boolean hasError(ClientHttpResponse response) {
-			return true;
-		}
-
-		@Override
-		public void handleError(URI uri, HttpMethod httpMethod, ClientHttpResponse response) {
+		public void handle(HttpRequest request, ClientHttpResponse response) throws IOException {
 			assertThat(this.observationRegistry.getCurrentObservationScope()).isNotNull();
 		}
+
 	}
 
 }

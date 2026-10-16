@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,6 +48,7 @@ import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.validation.annotation.ValidationAnnotationUtils;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
 /**
@@ -72,6 +73,8 @@ public class HandlerMethod extends AnnotatedMethod {
 	/** Logger that is available to subclasses. */
 	protected static final Log logger = LogFactory.getLog(HandlerMethod.class);
 
+	private static final Class<?>[] EMPTY_CLASS_ARRAY = new Class<?>[0];
+
 
 	private final Object bean;
 
@@ -85,11 +88,15 @@ public class HandlerMethod extends AnnotatedMethod {
 
 	private final boolean validateReturnValue;
 
+	private Class<?> @Nullable [] validationGroups;
+
 	private @Nullable HttpStatusCode responseStatus;
 
 	private @Nullable String responseStatusReason;
 
 	private @Nullable HandlerMethod resolvedFromHandlerMethod;
+
+	private volatile @Nullable HandlerMethod resolvedBeanHandlerMethod;
 
 	private final String description;
 
@@ -176,23 +183,38 @@ public class HandlerMethod extends AnnotatedMethod {
 	}
 
 	/**
-	 * Re-create HandlerMethod with additional input.
+	 * Re-create new HandlerMethod instance that copies the given HandlerMethod
+	 * but replaces the handler, and optionally checks for the presence of
+	 * validation annotations.
+	 * <p>Subclasses can override this to ensure that a HandlerMethod is of the
+	 * same type if re-created.
+	 * @since 6.2.3
 	 */
-	private HandlerMethod(HandlerMethod handlerMethod, @Nullable Object handler, boolean initValidateFlags) {
+	protected HandlerMethod(HandlerMethod handlerMethod, @Nullable Object handler, boolean initValidateFlags) {
 		super(handlerMethod);
 		this.bean = (handler != null ? handler : handlerMethod.bean);
 		this.beanFactory = handlerMethod.beanFactory;
 		this.messageSource = handlerMethod.messageSource;
 		this.beanType = handlerMethod.beanType;
+
 		this.validateArguments = (initValidateFlags ?
 				MethodValidationInitializer.checkArguments(this.beanType, getMethodParameters()) :
 				handlerMethod.validateArguments);
+
 		this.validateReturnValue = (initValidateFlags ?
 				MethodValidationInitializer.checkReturnValue(this.beanType, getBridgedMethod()) :
 				handlerMethod.validateReturnValue);
+
+		this.validationGroups = (handler != null && (shouldValidateArguments() || shouldValidateReturnValue()) ?
+				ValidationAnnotationUtils.determineValidationGroups(handler, getBridgedMethod()) :
+				handlerMethod.validationGroups);
+
 		this.responseStatus = handlerMethod.responseStatus;
 		this.responseStatusReason = handlerMethod.responseStatusReason;
-		this.resolvedFromHandlerMethod = handlerMethod;
+
+		this.resolvedFromHandlerMethod = (handlerMethod.resolvedFromHandlerMethod != null ?
+				handlerMethod.resolvedFromHandlerMethod : handlerMethod);
+
 		this.description = handlerMethod.toString();
 	}
 
@@ -211,7 +233,10 @@ public class HandlerMethod extends AnnotatedMethod {
 			this.responseStatus = annotation.code();
 			this.responseStatusReason = resolvedReason;
 			if (StringUtils.hasText(this.responseStatusReason) && getMethod().getReturnType() != void.class) {
-				logger.warn("Return value of [" + getMethod() + "] will be ignored since @ResponseStatus 'reason' attribute is set.");
+				if (logger.isWarnEnabled()) {
+					logger.warn("Return value of [" + getMethod() +
+							"] will be ignored since @ResponseStatus 'reason' attribute is set.");
+				}
 			}
 		}
 	}
@@ -274,6 +299,18 @@ public class HandlerMethod extends AnnotatedMethod {
 	}
 
 	/**
+	 * Return validation groups declared in
+	 * {@link org.springframework.validation.annotation.Validated @Validated}
+	 * either on the method, or on the containing target class of the method, or
+	 * for an AOP proxy without a target (with all behavior in advisors), also
+	 * check on proxied interfaces.
+	 * @since 7.0.4
+	 */
+	public Class<?>[] getValidationGroups() {
+		return (this.validationGroups != null ? this.validationGroups : EMPTY_CLASS_ARRAY);
+	}
+
+	/**
 	 * Return the specified response status, if any.
 	 * @since 4.3.8
 	 * @see ResponseStatus#code()
@@ -292,8 +329,10 @@ public class HandlerMethod extends AnnotatedMethod {
 	}
 
 	/**
-	 * Return the HandlerMethod from which this HandlerMethod instance was
-	 * resolved via {@link #createWithResolvedBean()}.
+	 * Return the original HandlerMethod instance that from which the current
+	 * HandlerMethod instance was created via either
+	 * {@link #createWithValidateFlags()} or {@link #createWithResolvedBean()}.
+	 * The original instance is needed for cached CORS config lookups.
 	 */
 	public @Nullable HandlerMethod getResolvedFromHandlerMethod() {
 		return this.resolvedFromHandlerMethod;
@@ -309,17 +348,30 @@ public class HandlerMethod extends AnnotatedMethod {
 	}
 
 	/**
-	 * If the provided instance contains a bean name rather than an object instance,
-	 * the bean name is resolved before a {@link HandlerMethod} is created and returned.
+	 * If the {@link #getBean() handler} is a bean name rather than the actual
+	 * handler instance, resolve the bean name through Spring configuration
+	 * (e.g. for prototype beans), and return a new {@link HandlerMethod}
+	 * instance with the resolved handler.
+	 * <p>If the {@link #getBean() handler} is not String, return the same instance.
 	 */
 	public HandlerMethod createWithResolvedBean() {
-		Object handler = this.bean;
-		if (this.bean instanceof String beanName) {
-			Assert.state(this.beanFactory != null, "Cannot resolve bean name without BeanFactory");
-			handler = this.beanFactory.getBean(beanName);
+		HandlerMethod resolvedBeanHandlerMethod = this.resolvedBeanHandlerMethod;
+		if (resolvedBeanHandlerMethod != null) {
+			return resolvedBeanHandlerMethod;
 		}
-		Assert.notNull(handler, "No handler instance");
-		return new HandlerMethod(this, handler, false);
+
+		// We need to resolve a bean name reference.
+		if (!(this.bean instanceof String beanName)) {
+			return this;
+		}
+		Assert.state(this.beanFactory != null, "Cannot resolve bean name without BeanFactory");
+		Object handler = this.beanFactory.getBean(beanName);
+
+		HandlerMethod handlerMethod = new HandlerMethod(this, handler, false);
+		if (this.beanFactory.isSingleton(beanName)) {
+			this.resolvedBeanHandlerMethod = handlerMethod;
+		}
+		return handlerMethod;
 	}
 
 	/**
@@ -342,6 +394,12 @@ public class HandlerMethod extends AnnotatedMethod {
 		return (this.bean.hashCode() * 31 + super.hashCode());
 	}
 
+	/**
+	 * Returns a concise description of this {@code HandlerMethod}, which is used
+	 * in log and error messages.
+	 * <p>The description should typically include the method signature of the
+	 * underlying handler method for clarity and debugging purposes.
+	 */
 	@Override
 	public String toString() {
 		return this.description;
@@ -351,32 +409,34 @@ public class HandlerMethod extends AnnotatedMethod {
 	// Support methods for use in subclass variants
 
 	/**
-	 * Assert that the target bean class is an instance of the class where the given
-	 * method is declared. In some cases the actual controller instance at request-
-	 * processing time may be a JDK dynamic proxy (lazy initialization, prototype
-	 * beans, and others). {@code @Controller}'s that require proxying should prefer
-	 * class-based proxy mechanisms.
+	 * Assert that the target bean class is an instance of the class where the given method
+	 * is declared. In some cases the actual controller instance at request-processing time
+	 * may be a JDK dynamic proxy (lazy initialization, prototype beans, and others).
+	 * {@code @Controller}'s that require proxying should prefer class-based proxy mechanisms.
 	 */
-	protected void assertTargetBean(Method method, Object targetBean, Object[] args) {
+	protected void assertTargetBean(Method method, Object targetBean, @Nullable Object[] args) {
 		Class<?> methodDeclaringClass = method.getDeclaringClass();
 		Class<?> targetBeanClass = targetBean.getClass();
 		if (!methodDeclaringClass.isAssignableFrom(targetBeanClass)) {
 			String text = "The mapped handler method class '" + methodDeclaringClass.getName() +
-					"' is not an instance of the actual controller bean class '" +
-					targetBeanClass.getName() + "'. If the controller requires proxying " +
+					"' is not an instance of the actual target bean class '" +
+					targetBeanClass.getName() + "'. If the target bean requires proxying " +
 					"(for example, due to @Transactional), please use class-based proxying.";
 			throw new IllegalStateException(formatInvokeError(text, args));
 		}
 	}
 
-	protected String formatInvokeError(String text, Object[] args) {
+	protected String formatInvokeError(String text, @Nullable Object[] args) {
 		String formattedArgs = IntStream.range(0, args.length)
-				.mapToObj(i -> (args[i] != null ?
-						"[" + i + "] [type=" + args[i].getClass().getName() + "] [value=" + args[i] + "]" :
-						"[" + i + "] [null]"))
-				.collect(Collectors.joining(",\n", " ", " "));
+				.mapToObj(i -> {
+					Object arg = args[i];
+					return (arg != null ?
+							"[" + i + "] [type=" + arg.getClass().getName() + "] [value=" + arg + "]" :
+							"[" + i + "] [null]");
+				})
+				.collect(Collectors.joining(",\n"));
 		return text + "\n" +
-				"Controller [" + getBeanType().getName() + "]\n" +
+				"Handler [" + getBeanType().getName() + "]\n" +
 				"Method [" + getBridgedMethod().toGenericString() + "] " +
 				"with argument values:\n" + formattedArgs;
 	}

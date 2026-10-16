@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,7 +42,6 @@ import org.springframework.dao.DataRetrievalFailureException;
 import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.jdbc.support.JdbcUtils;
 import org.springframework.util.Assert;
-import org.springframework.util.ClassUtils;
 import org.springframework.util.StringUtils;
 
 /**
@@ -214,8 +213,8 @@ public class BeanPropertyRowMapper<T> implements RowMapper<T> {
 	/**
 	 * Set a {@link ConversionService} for binding JDBC values to bean properties,
 	 * or {@code null} for none.
-	 * <p>Default is a {@link DefaultConversionService}, as of Spring 4.3. This
-	 * provides support for {@code java.time} conversion and other special types.
+	 * <p>Default is a {@link DefaultConversionService}. This provides support for
+	 * {@code java.time} conversion and other special types.
 	 * @since 4.3
 	 * @see #initBeanWrapper(BeanWrapper)
 	 */
@@ -261,7 +260,7 @@ public class BeanPropertyRowMapper<T> implements RowMapper<T> {
 	 * @param propertyName the property name (as used by property descriptors)
 	 * @since 5.3.9
 	 */
-	protected void suppressProperty(String propertyName) {
+	protected void suppressProperty(@Nullable String propertyName) {
 		if (this.mappedProperties != null) {
 			this.mappedProperties.remove(lowerCaseName(propertyName));
 			this.mappedProperties.remove(underscoreName(propertyName));
@@ -296,7 +295,10 @@ public class BeanPropertyRowMapper<T> implements RowMapper<T> {
 	 * @since 4.2
 	 * @see #underscoreName
 	 */
-	protected String lowerCaseName(String name) {
+	protected String lowerCaseName(@Nullable String name) {
+		if (!StringUtils.hasLength(name)) {
+			return "";
+		}
 		return name.toLowerCase(Locale.US);
 	}
 
@@ -308,7 +310,7 @@ public class BeanPropertyRowMapper<T> implements RowMapper<T> {
 	 * @since 4.2
 	 * @see JdbcUtils#convertPropertyNameToUnderscoreName
 	 */
-	protected String underscoreName(String name) {
+	protected String underscoreName(@Nullable String name) {
 		return JdbcUtils.convertPropertyNameToUnderscoreName(name);
 	}
 
@@ -339,7 +341,7 @@ public class BeanPropertyRowMapper<T> implements RowMapper<T> {
 					Object value = getColumnValue(rs, index, pd);
 					if (rowNumber == 0 && logger.isDebugEnabled()) {
 						logger.debug("Mapping column '" + column + "' to property '" + pd.getName() +
-								"' of type '" + ClassUtils.getQualifiedName(pd.getPropertyType()) + "'");
+								"' of type '" + pd.getPropertyType().getTypeName() + "'");
 					}
 					try {
 						bw.setPropertyValue(pd.getName(), value);
@@ -347,7 +349,7 @@ public class BeanPropertyRowMapper<T> implements RowMapper<T> {
 					catch (TypeMismatchException ex) {
 						if (value == null && isPrimitivesDefaultedForNullValue()) {
 							if (logger.isDebugEnabled()) {
-								String propertyType = ClassUtils.getQualifiedName(pd.getPropertyType());
+								String propertyType = pd.getPropertyType().getTypeName();
 								logger.debug("""
 										Ignoring intercepted TypeMismatchException for row %d and column '%s' \
 										with null value when setting property '%s' of type '%s' on object: %s"

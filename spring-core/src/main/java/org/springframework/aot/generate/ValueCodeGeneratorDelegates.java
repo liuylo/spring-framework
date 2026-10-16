@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -220,10 +220,28 @@ public abstract class ValueCodeGeneratorDelegates {
 			if (value instanceof Long) {
 				return CodeBlock.of("$LL", value);
 			}
-			if (value instanceof Float) {
+			if (value instanceof Float floatValue) {
+				if (Float.isNaN(floatValue)) {
+					return CodeBlock.of("$T.NaN", Float.class);
+				}
+				if (floatValue == Float.POSITIVE_INFINITY) {
+					return CodeBlock.of("$T.POSITIVE_INFINITY", Float.class);
+				}
+				if (floatValue == Float.NEGATIVE_INFINITY) {
+					return CodeBlock.of("$T.NEGATIVE_INFINITY", Float.class);
+				}
 				return CodeBlock.of("$LF", value);
 			}
-			if (value instanceof Double) {
+			if (value instanceof Double doubleValue) {
+				if (Double.isNaN(doubleValue)) {
+					return CodeBlock.of("$T.NaN", Double.class);
+				}
+				if (doubleValue == Double.POSITIVE_INFINITY) {
+					return CodeBlock.of("$T.POSITIVE_INFINITY", Double.class);
+				}
+				if (doubleValue == Double.NEGATIVE_INFINITY) {
+					return CodeBlock.of("$T.NEGATIVE_INFINITY", Double.class);
+				}
 				return CodeBlock.of("(double) $L", value);
 			}
 			if (value instanceof Character character) {
@@ -237,8 +255,8 @@ public abstract class ValueCodeGeneratorDelegates {
 			if (escaped != null) {
 				return escaped;
 			}
-			return (!Character.isISOControl(ch)) ? Character.toString(ch)
-					: String.format("\\u%04x", (int) ch);
+			return (!Character.isISOControl(ch)) ? Character.toString(ch) :
+					String.format("\\u%04x", (int) ch);
 		}
 	}
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,9 +28,6 @@ import org.springframework.util.Assert;
  * {@link JpaTransactionManager} binds instances of this class to the thread,
  * for a given {@link jakarta.persistence.EntityManagerFactory}.
  *
- * <p>Also serves as a base class for {@link org.springframework.orm.hibernate5.SessionHolder},
- * as of 5.1.
- *
  * <p>Note: This is an SPI class, not intended to be used by applications.
  *
  * @author Juergen Hoeller
@@ -40,7 +37,9 @@ import org.springframework.util.Assert;
  */
 public class EntityManagerHolder extends ResourceHolderSupport {
 
-	private final @Nullable EntityManager entityManager;
+	protected @Nullable EntityManager entityManager;
+
+	protected @Nullable Object entityAgent;
 
 	private boolean transactionActive;
 
@@ -51,10 +50,42 @@ public class EntityManagerHolder extends ResourceHolderSupport {
 		this.entityManager = entityManager;
 	}
 
+	EntityManagerHolder(@Nullable Object entityAgent) {
+		this.entityAgent = entityAgent;
+	}
+
+	protected EntityManagerHolder(EntityManagerHolder original) {
+		this.entityManager = original.entityManager;
+		this.entityAgent = original.entityAgent;
+		this.transactionActive = original.transactionActive;
+		this.savepointManager = original.savepointManager;
+	}
+
+
+	void setEntityManager(EntityManager entityManager) {
+		this.entityManager = entityManager;
+	}
 
 	public EntityManager getEntityManager() {
 		Assert.state(this.entityManager != null, "No EntityManager available");
 		return this.entityManager;
+	}
+
+	void setEntityAgent(Object entityAgent) {
+		this.entityAgent = entityAgent;
+	}
+
+	Object getEntityAgent() {
+		Assert.state(this.entityAgent != null, "No EntityAgent available");
+		return this.entityAgent;
+	}
+
+	boolean hasEntityManager() {
+		return (this.entityManager != null);
+	}
+
+	boolean hasEntityAgent() {
+		return (this.entityAgent != null);
 	}
 
 	protected void setTransactionActive(boolean transactionActive) {
@@ -79,6 +110,13 @@ public class EntityManagerHolder extends ResourceHolderSupport {
 		super.clear();
 		this.transactionActive = false;
 		this.savepointManager = null;
+	}
+
+	protected void closeAll() {
+		EntityManagerFactoryUtils.closeEntityHandler(this.entityManager);
+		EntityManagerFactoryUtils.closeEntityHandler(this.entityAgent);
+		this.entityManager = null;
+		this.entityAgent = null;
 	}
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -74,7 +74,7 @@ class MethodMessageHandlerTests {
 
 	@Test
 	@SuppressWarnings("unchecked")
-	public void bestMatch() throws NoSuchMethodException {
+	void bestMatch() throws NoSuchMethodException {
 		TestMethodMessageHandler handler = new TestMethodMessageHandler();
 		TestController controller = new TestController();
 		handler.registerHandlerMethod(controller,
@@ -96,7 +96,7 @@ class MethodMessageHandlerTests {
 
 	@Test
 	@SuppressWarnings("unchecked")
-	public void argumentResolution() {
+	void argumentResolution() {
 
 		ArgumentResolverConfigurer configurer = new ArgumentResolverConfigurer();
 		configurer.addCustomResolver(new StubArgumentResolver(String.class, "foo"));
@@ -118,7 +118,7 @@ class MethodMessageHandlerTests {
 
 	@Test
 	@SuppressWarnings("unchecked")
-	public void handleException() {
+	void handleException() {
 
 		TestMethodMessageHandler handler = initMethodMessageHandler(TestController.class);
 

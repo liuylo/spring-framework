@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,9 +45,9 @@ public class TestReturnValueHandler implements HandlerMethodReturnValueHandler {
 	@Override
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public Mono<Void> handleReturnValue(@Nullable Object value, MethodParameter returnType, Message<?> message) {
-		return value instanceof Publisher ?
-				new ChannelSendOperator((Publisher) value, this::saveValue) :
-				saveValue(value);
+		return (value instanceof Publisher publisher ?
+				new ChannelSendOperator(publisher, this::saveValue) :
+				saveValue(value));
 	}
 
 	private Mono<Void> saveValue(@Nullable Object value) {

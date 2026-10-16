@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -97,7 +97,7 @@ public class DelegatingIntroductionInterceptor extends IntroductionInfoSupport
 
 	/**
 	 * Subclasses may need to override this if they want to perform custom
-	 * behaviour in around advice. However, subclasses should invoke this
+	 * behavior in around advice. However, subclasses should invoke this
 	 * method, which handles introduced interfaces and forwarding to the target.
 	 */
 	@Override

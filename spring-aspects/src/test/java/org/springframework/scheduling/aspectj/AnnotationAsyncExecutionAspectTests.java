@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ import static org.springframework.core.testfixture.TestGroup.LONG_RUNNING;
  * @author Stephane Nicoll
  */
 @EnabledForTestGroups(LONG_RUNNING)
-public class AnnotationAsyncExecutionAspectTests {
+class AnnotationAsyncExecutionAspectTests {
 
 	private static final long WAIT_TIME = 1000; //milliseconds
 
@@ -56,7 +56,7 @@ public class AnnotationAsyncExecutionAspectTests {
 
 
 	@BeforeEach
-	public void setUp() {
+	void setUp() {
 		executor = new CountingExecutor();
 		AnnotationAsyncExecutionAspect.aspectOf().setExecutor(executor);
 	}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2020 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -78,7 +78,7 @@ public class GeneratedKeyHolder implements KeyHolder {
 		Iterator<Object> keyIter = this.keyList.get(0).values().iterator();
 		if (keyIter.hasNext()) {
 			Object key = keyIter.next();
-			if (key == null || !(keyType.isAssignableFrom(key.getClass()))) {
+			if (key == null || !(keyType.isInstance(key))) {
 				throw new DataRetrievalFailureException(
 						"The generated key type is not supported. " +
 						"Unable to cast [" + (key != null ? key.getClass().getName() : null) +

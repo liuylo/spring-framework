@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,10 +26,11 @@ import org.jspecify.annotations.Nullable;
  * This type is used by {@link CompositeMap}.
  *
  * @author Arjen Poutsma
+ * @author Yanming Zhou
  * @since 6.2
  * @param <E> the type of elements maintained by this set
  */
-final class FilteredSet<E> extends FilteredCollection<E> implements Set<E> {
+final class FilteredSet<E extends @Nullable Object> extends FilteredCollection<E> implements Set<E> {
 
 	public FilteredSet(Set<E> delegate, Predicate<E> filter) {
 		super(delegate, filter);

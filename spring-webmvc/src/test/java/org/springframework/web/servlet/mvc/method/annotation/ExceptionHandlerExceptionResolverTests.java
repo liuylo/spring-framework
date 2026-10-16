@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -83,8 +83,6 @@ import static org.mockito.Mockito.mock;
  */
 @SuppressWarnings("unused")
 class ExceptionHandlerExceptionResolverTests {
-
-	//TODO
 
 	private static int DEFAULT_RESOLVER_COUNT;
 
@@ -172,7 +170,7 @@ class ExceptionHandlerExceptionResolverTests {
 	@Test
 	void resolveNoExceptionHandlerForException() throws NoSuchMethodException {
 		Exception npe = new NullPointerException();
-		HandlerMethod handlerMethod = new HandlerMethod(new IoExceptionController(), "handle");
+		HandlerMethod handlerMethod = new HandlerMethod(new IOExceptionController(), "handle");
 		this.resolver.afterPropertiesSet();
 		ModelAndView mav = this.resolver.resolveException(this.request, this.response, handlerMethod, npe);
 
@@ -540,11 +538,11 @@ class ExceptionHandlerExceptionResolverTests {
 
 
 	@Controller
-	static class IoExceptionController {
+	static class IOExceptionController {
 
 		public void handle() {}
 
-		@ExceptionHandler(value = IOException.class)
+		@ExceptionHandler(IOException.class)
 		public void handleException() {
 		}
 	}

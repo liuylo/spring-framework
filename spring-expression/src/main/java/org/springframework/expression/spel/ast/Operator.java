@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2021 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package org.springframework.expression.spel.ast;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.Objects;
 
 import org.jspecify.annotations.Nullable;
 
@@ -363,11 +364,11 @@ public abstract class Operator extends SpelNodeImpl {
 			boolean rightNumeric = CodeFlow.isPrimitiveOrUnboxableSupportedNumberOrBoolean(rd);
 
 			// If the declared descriptors aren't providing the information, try the actual descriptors
-			if (!leftNumeric && !ObjectUtils.nullSafeEquals(ld, leftActualDescriptor)) {
+			if (!leftNumeric && !Objects.equals(ld, leftActualDescriptor)) {
 				ld = leftActualDescriptor;
 				leftNumeric = CodeFlow.isPrimitiveOrUnboxableSupportedNumberOrBoolean(ld);
 			}
-			if (!rightNumeric && !ObjectUtils.nullSafeEquals(rd, rightActualDescriptor)) {
+			if (!rightNumeric && !Objects.equals(rd, rightActualDescriptor)) {
 				rd = rightActualDescriptor;
 				rightNumeric = CodeFlow.isPrimitiveOrUnboxableSupportedNumberOrBoolean(rd);
 			}

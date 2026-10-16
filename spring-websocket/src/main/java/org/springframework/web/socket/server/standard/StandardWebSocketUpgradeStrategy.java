@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -97,7 +97,9 @@ public class StandardWebSocketUpgradeStrategy implements RequestUpgradeStrategy 
 			@Nullable Principal user, WebSocketHandler wsHandler, Map<String, Object> attrs)
 			throws HandshakeFailureException {
 
-		HttpHeaders headers = request.getHeaders();
+		// Copy request headers, as they might be pooled and recycled by
+		// the server implementation once the handshake HTTP exchange is done.
+		HttpHeaders headers = HttpHeaders.copyOf(request.getHeaders());
 		InetSocketAddress localAddr = null;
 		try {
 			localAddr = request.getLocalAddress();

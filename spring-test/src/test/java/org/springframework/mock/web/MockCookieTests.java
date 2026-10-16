@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import java.time.format.DateTimeParseException;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -68,8 +69,8 @@ class MockCookieTests {
 		assertCookie(cookie, "SESSION", "123");
 	}
 
-	@SuppressWarnings("removal")
 	@Test
+	@SuppressWarnings("removal")
 	void parseHeaderWithAttributes() {
 		MockCookie cookie = MockCookie.parse("SESSION=123; Domain=example.com; Max-Age=60; " +
 				"Expires=Tue, 8 Oct 2019 19:50:00 GMT; Path=/; Secure; HttpOnly; Partitioned; SameSite=Lax");
@@ -87,6 +88,19 @@ class MockCookieTests {
 		assertThat(cookie.getComment()).isNull();
 	}
 
+	@Test  // gh-34575
+	void parseHeaderWithOptionalAttributes() {
+		MockCookie cookie = MockCookie.parse("SESSION=123; HttpOnly; Version=1; Partitioned; Secure");
+
+		assertCookie(cookie, "SESSION", "123");
+		assertThat(cookie.isHttpOnly()).isTrue();
+		assertThat(cookie.getSecure()).isTrue();
+		assertThat(cookie.isPartitioned()).isTrue();
+		assertThat(cookie.getAttribute("Partitioned")).isEmpty();
+		assertThat(cookie.getAttribute("Version")).isEqualTo("1");
+		assertThat(cookie.getAttribute("BOGUS")).isNull();
+	}
+
 	@ParameterizedTest
 	@ValueSource(strings = {"0", "bogus"})
 	void parseHeaderWithInvalidExpiresAttribute(String expiresValue) {
@@ -101,11 +115,13 @@ class MockCookieTests {
 		assertThat(cookie.getValue()).isEqualTo(value);
 	}
 
-	@Test
-	void parseNullHeader() {
+	@ParameterizedTest
+	@NullAndEmptySource
+	@ValueSource(strings = "  ")
+	void parseNullOrEmptyHeader(String header) {
 		assertThatIllegalArgumentException()
-			.isThrownBy(() -> MockCookie.parse(null))
-			.withMessageContaining("Set-Cookie header must not be null");
+			.isThrownBy(() -> MockCookie.parse(header))
+			.withMessageContaining("Set-Cookie header must not be null or empty");
 	}
 
 	@Test
@@ -209,10 +225,13 @@ class MockCookieTests {
 	void setPartitioned() {
 		MockCookie cookie = new MockCookie("SESSION", "123");
 		assertThat(cookie.isPartitioned()).isFalse();
+		assertThat(cookie.getAttribute("Partitioned")).isNull();
 		cookie.setPartitioned(true);
 		assertThat(cookie.isPartitioned()).isTrue();
+		assertThat(cookie.getAttribute("Partitioned")).isEmpty();
 		cookie.setPartitioned(false);
 		assertThat(cookie.isPartitioned()).isFalse();
+		assertThat(cookie.getAttribute("Partitioned")).isNull();
 	}
 
 }

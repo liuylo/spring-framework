@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import org.springframework.aot.hint.support.ClassHintUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.BeanDefinitionStoreException;
+import org.springframework.beans.factory.BeanRegistrar;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
 import org.springframework.beans.factory.config.BeanDefinition;
@@ -38,10 +39,13 @@ import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.beans.factory.config.SmartInstantiationAwareBeanPostProcessor;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor;
+import org.springframework.beans.factory.support.BeanRegistryAdapter;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.beans.factory.support.MergedBeanDefinitionPostProcessor;
 import org.springframework.beans.factory.support.RootBeanDefinition;
 import org.springframework.context.ApplicationContext;
+import org.springframework.core.Ordered;
+import org.springframework.core.PriorityOrdered;
 import org.springframework.core.io.ProtocolResolver;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
@@ -79,8 +83,6 @@ import org.springframework.util.Assert;
  * GenericApplicationContext ctx = new GenericApplicationContext();
  * XmlBeanDefinitionReader xmlReader = new XmlBeanDefinitionReader(ctx);
  * xmlReader.loadBeanDefinitions(new ClassPathResource("applicationContext.xml"));
- * PropertiesBeanDefinitionReader propReader = new PropertiesBeanDefinitionReader(ctx);
- * propReader.loadBeanDefinitions(new ClassPathResource("otherBeans.properties"));
  * ctx.refresh();
  *
  * MyBean myBean = (MyBean) ctx.getBean("myBean");
@@ -102,9 +104,12 @@ import org.springframework.util.Assert;
  * @see #registerBeanDefinition
  * @see #refresh()
  * @see org.springframework.beans.factory.xml.XmlBeanDefinitionReader
- * @see org.springframework.beans.factory.support.PropertiesBeanDefinitionReader
  */
 public class GenericApplicationContext extends AbstractApplicationContext implements BeanDefinitionRegistry {
+
+	private static final String DEFERRED_REGISTRY_POST_PROCESSOR_BEAN_NAME =
+			GenericApplicationContext.class.getName() + ".deferredRegistryPostProcessor";
+
 
 	private final DefaultListableBeanFactory beanFactory;
 
@@ -491,7 +496,7 @@ public class GenericApplicationContext extends AbstractApplicationContext implem
 	 * (may be {@code null} or empty)
 	 * @since 5.2 (since 5.0 on the AnnotationConfigApplicationContext subclass)
 	 */
-	public <T> void registerBean(Class<T> beanClass, Object... constructorArgs) {
+	public <T> void registerBean(Class<T> beanClass, @Nullable Object... constructorArgs) {
 		registerBean(null, beanClass, constructorArgs);
 	}
 
@@ -506,7 +511,7 @@ public class GenericApplicationContext extends AbstractApplicationContext implem
 	 * (may be {@code null} or empty)
 	 * @since 5.2 (since 5.0 on the AnnotationConfigApplicationContext subclass)
 	 */
-	public <T> void registerBean(@Nullable String beanName, Class<T> beanClass, Object... constructorArgs) {
+	public <T> void registerBean(@Nullable String beanName, Class<T> beanClass, @Nullable Object... constructorArgs) {
 		registerBean(beanName, beanClass, (Supplier<T>) null,
 				bd -> {
 					for (Object arg : constructorArgs) {
@@ -594,6 +599,27 @@ public class GenericApplicationContext extends AbstractApplicationContext implem
 		registerBeanDefinition(nameToUse, beanDefinition);
 	}
 
+	/**
+	 * Invoke the given registrars for registering their beans with this
+	 * application context.
+	 * <p>This can be used to apply encapsulated pieces of programmatic
+	 * bean registration to this application context without relying on
+	 * individual calls to its context-level {@code registerBean} methods.
+	 * @param registrars one or more {@link BeanRegistrar} instances
+	 * @since 7.0
+	 */
+	public void register(BeanRegistrar... registrars) {
+		for (BeanRegistrar registrar : registrars) {
+			DeferredRegistryPostProcessor pp = (DeferredRegistryPostProcessor)
+					this.beanFactory.getSingleton(DEFERRED_REGISTRY_POST_PROCESSOR_BEAN_NAME);
+			if (pp == null) {
+				pp = new DeferredRegistryPostProcessor();
+				this.beanFactory.registerSingleton(DEFERRED_REGISTRY_POST_PROCESSOR_BEAN_NAME, pp);
+			}
+			pp.addRegistrar(registrar);
+		}
+	}
+
 
 	/**
 	 * {@link RootBeanDefinition} subclass for {@code #registerBean} based
@@ -631,6 +657,33 @@ public class GenericApplicationContext extends AbstractApplicationContext implem
 		@Override
 		public RootBeanDefinition cloneBeanDefinition() {
 			return new ClassDerivedBeanDefinition(this);
+		}
+	}
+
+
+	/**
+	 * Internal post-processor for invoking DeferredBeanRegistrars at the end
+	 * of the BeanDefinitionRegistryPostProcessor PriorityOrdered phase,
+	 * right before a potential ConfigurationClassPostProcessor.
+	 */
+	private class DeferredRegistryPostProcessor implements BeanDefinitionRegistryPostProcessor, PriorityOrdered {
+
+		private final List<BeanRegistrar> registrars = new ArrayList<>();
+
+		public void addRegistrar(BeanRegistrar registrar) {
+			this.registrars.add(registrar);
+		}
+
+		@Override
+		public int getOrder() {
+			return Ordered.LOWEST_PRECEDENCE - 1;  // within PriorityOrdered, 1 before ConfigurationClassPostProcessor
+		}
+
+		@Override
+		public void postProcessBeanDefinitionRegistry(BeanDefinitionRegistry registry) throws BeansException {
+			for (BeanRegistrar registrar : this.registrars) {
+				new BeanRegistryAdapter(beanFactory, getEnvironment(), registrar.getClass()).register(registrar);
+			}
 		}
 	}
 

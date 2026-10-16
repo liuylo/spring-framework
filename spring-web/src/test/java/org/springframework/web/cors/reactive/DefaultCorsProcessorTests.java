@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ import org.springframework.web.testfixture.server.MockServerWebExchange;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.springframework.http.HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS;
+import static org.springframework.http.HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS;
 import static org.springframework.http.HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN;
 import static org.springframework.http.HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS;
 import static org.springframework.http.HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD;
@@ -177,7 +178,7 @@ class DefaultCorsProcessorTests {
 	}
 
 	@Test // gh-26892
-	public void actualRequestTrailingSlashOriginMatch() {
+	void actualRequestTrailingSlashOriginMatch() {
 		ServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
 				.method(HttpMethod.GET, "http://localhost/test.html")
 				.header(HttpHeaders.ORIGIN, "https://domain2.com/"));
@@ -191,7 +192,7 @@ class DefaultCorsProcessorTests {
 	}
 
 	@Test // gh-33682
-	public void actualRequestMalformedOriginRejected() {
+	void actualRequestMalformedOriginRejected() {
 		ServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
 				.method(HttpMethod.GET, "http://localhost/test.html")
 				.header(HttpHeaders.ORIGIN, "http://*@:;"));
@@ -480,7 +481,8 @@ class DefaultCorsProcessorTests {
 
 		ServerHttpResponse response = exchange.getResponse();
 		assertThat(response.getHeaders().containsHeader(ACCESS_CONTROL_ALLOW_ORIGIN)).isFalse();
-		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+		assertThat(response.getHeaders().containsHeader(ACCESS_CONTROL_ALLOW_METHODS)).isFalse();
+		assertThat(response.getStatusCode()).isNull();
 	}
 
 	@Test

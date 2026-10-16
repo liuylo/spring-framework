@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -206,8 +206,23 @@ class InvocableHandlerMethodKotlinTests {
 	}
 
 	@Test
+	fun nestedValueClass() {
+		this.resolvers.add(stubResolver(1L, Long::class.java))
+		val method = ValueClassController::nestedValueClass.javaMethod!!
+		val result = invoke(ValueClassController(), method,1L)
+		assertHandlerResultValue(result, "1")
+	}
+
+	@Test
 	fun valueClassReturnValue() {
 		val method = ValueClassController::valueClassReturnValue.javaMethod!!
+		val result = invoke(ValueClassController(), method)
+		assertHandlerResultValue(result, "foo")
+	}
+
+	@Test
+	fun nestedValueClassReturnValue() {
+		val method = ValueClassController::nestedValueClassReturnValue.javaMethod!!
 		val result = invoke(ValueClassController(), method)
 		assertHandlerResultValue(result, "foo")
 	}
@@ -233,6 +248,22 @@ class InvocableHandlerMethodKotlinTests {
 		val method = ValueClassController::valueClassWithInit.javaMethod!!
 		val result = invoke(ValueClassController(), method)
 		assertExceptionThrown(result, IllegalArgumentException::class)
+	}
+
+	@Test
+	fun valueClassWithNullableAndNonNullParameter() {
+		this.resolvers.add(stubResolver(LongValueClass(1), LongValueClass::class.java))
+		val method = ValueClassController::valueClassWithNullable.javaMethod!!
+		val result = invoke(ValueClassController(), method)
+		assertHandlerResultValue(result, "1")
+	}
+
+	@Test
+	fun valueClassWithNullableAndUnderlyingValue() {
+		this.resolvers.add(stubResolver(1L, LongValueClass::class.java))
+		val method = ValueClassController::valueClassWithNullable.javaMethod!!
+		val result = invoke(ValueClassController(), method)
+		assertHandlerResultValue(result, "1")
 	}
 
 	@Test
@@ -295,6 +326,14 @@ class InvocableHandlerMethodKotlinTests {
 		val method = SuspendingValueClassController::valueClassWithNullable.javaMethod!!
 		val result = invoke(SuspendingValueClassController(), method, null)
 		assertHandlerResultValue(result, "null")
+	}
+
+	@Test
+	fun suspendingValueClassWithNullableAndUnderlyingValue() {
+		this.resolvers.add(stubResolver(1L, LongValueClass::class.java))
+		val method = SuspendingValueClassController::valueClassWithNullable.javaMethod!!
+		val result = invoke(SuspendingValueClassController(), method)
+		assertHandlerResultValue(result, "1")
 	}
 
 	@Test
@@ -366,7 +405,8 @@ class InvocableHandlerMethodKotlinTests {
 		StepVerifier.create(mono)
 				.consumeNextWith {
 					if (it.returnValue is Mono<*>) {
-						StepVerifier.create(it.returnValue as Mono<*>).expectNext(expected).verifyComplete()
+						StepVerifier.create(it.returnValue as Mono<*>).expectNext(requireNotNull(expected))
+							.verifyComplete()
 					} else {
 						assertThat(it.returnValue).isEqualTo(expected)
 					}
@@ -448,7 +488,11 @@ class InvocableHandlerMethodKotlinTests {
 
 		fun valueClass(limit: LongValueClass) = "${limit.value}"
 
+		fun nestedValueClass(limit: ULongValueClass) = "${limit.value}"
+
 		fun valueClassReturnValue() = StringValueClass("foo")
+
+		fun nestedValueClassReturnValue() = NestedStringValueClass(StringValueClass("foo"))
 
 		fun resultOfUnitReturnValue() = Result.success(Unit)
 
@@ -534,7 +578,13 @@ class InvocableHandlerMethodKotlinTests {
 	value class StringValueClass(val value: String)
 
 	@JvmInline
+	value class NestedStringValueClass(val value: StringValueClass)
+
+	@JvmInline
 	value class LongValueClass(val value: Long)
+
+	@JvmInline
+	value class ULongValueClass(val value: ULong)
 
 	@JvmInline
 	value class DoubleValueClass(val value: Double)

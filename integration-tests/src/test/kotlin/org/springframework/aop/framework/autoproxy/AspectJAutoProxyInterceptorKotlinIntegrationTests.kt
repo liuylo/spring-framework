@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 package org.springframework.aop.framework.autoproxy
 
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
 import org.aopalliance.intercept.MethodInterceptor
 import org.aopalliance.intercept.MethodInvocation
 import org.aspectj.lang.ProceedingJoinPoint
@@ -73,43 +72,37 @@ class AspectJAutoProxyInterceptorKotlinIntegrationTests(
 	}
 
 	@Test
-	fun `Multiple interceptors with suspending function`() {
+	suspend fun `Multiple interceptors with suspending function`() {
 		assertThat(firstAdvisor.interceptor.invocations).isEmpty()
 		assertThat(secondAdvisor.interceptor.invocations).isEmpty()
 		val value = "Hello!"
-		runBlocking {
-			assertThat(echo.suspendingEcho(value)).isEqualTo(value)
-		}
+		assertThat(echo.suspendingEcho(value)).isEqualTo(value)
 		assertThat(firstAdvisor.interceptor.invocations).singleElement().matches { Mono::class.java.isAssignableFrom(it) }
 		assertThat(secondAdvisor.interceptor.invocations).singleElement().matches { Mono::class.java.isAssignableFrom(it) }
 	}
 
 	@Test // gh-33095
-	fun `Aspect and reactive transactional with suspending function`() {
+	suspend fun `Aspect and reactive transactional with suspending function`() {
 		assertThat(countingAspect.counter).isZero()
 		assertThat(reactiveTransactionManager.commits).isZero()
 		val value = "Hello!"
-		runBlocking {
-			assertThat(echo.suspendingTransactionalEcho(value)).isEqualTo(value)
-		}
+		assertThat(echo.suspendingTransactionalEcho(value)).isEqualTo(value)
 		assertThat(countingAspect.counter).`as`("aspect applied").isOne()
 		assertThat(reactiveTransactionManager.begun).isOne()
 		assertThat(reactiveTransactionManager.commits).`as`("transactional applied").isOne()
 	}
 
 	@Test // gh-33210
-	fun `Aspect and cacheable with suspending function`() {
+	suspend fun `Aspect and cacheable with suspending function`() {
 		assertThat(countingAspect.counter).isZero()
 		val value = "Hello!"
-		runBlocking {
-			assertThat(echo.suspendingCacheableEcho(value)).isEqualTo("$value 0")
-			assertThat(echo.suspendingCacheableEcho(value)).isEqualTo("$value 0")
-			assertThat(echo.suspendingCacheableEcho(value)).isEqualTo("$value 0")
-			assertThat(countingAspect.counter).`as`("aspect applied once").isOne()
+		assertThat(echo.suspendingCacheableEcho(value)).isEqualTo("$value 0")
+		assertThat(echo.suspendingCacheableEcho(value)).isEqualTo("$value 0")
+		assertThat(echo.suspendingCacheableEcho(value)).isEqualTo("$value 0")
+		assertThat(countingAspect.counter).`as`("aspect applied once").isOne()
 
-			assertThat(echo.suspendingCacheableEcho("$value bis")).isEqualTo("$value bis 1")
-			assertThat(echo.suspendingCacheableEcho("$value bis")).isEqualTo("$value bis 1")
-		}
+		assertThat(echo.suspendingCacheableEcho("$value bis")).isEqualTo("$value bis 1")
+		assertThat(echo.suspendingCacheableEcho("$value bis")).isEqualTo("$value bis 1")
 		assertThat(countingAspect.counter).`as`("aspect applied once per key").isEqualTo(2)
 	}
 

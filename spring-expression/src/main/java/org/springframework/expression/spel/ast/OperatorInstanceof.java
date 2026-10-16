@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -62,6 +62,7 @@ public class OperatorInstanceof extends Operator {
 		Object leftValue = left.getValue();
 		Object rightValue = right.getValue();
 		BooleanTypedValue result;
+		state.trackOperation();
 		if (!(rightValue instanceof Class<?> rightClass)) {
 			throw new SpelEvaluationException(getRightOperand().getStartPosition(),
 					SpelMessage.INSTANCEOF_OPERATOR_NEEDS_CLASS_OPERAND,
@@ -71,7 +72,7 @@ public class OperatorInstanceof extends Operator {
 			result = BooleanTypedValue.FALSE;  // null is not an instanceof anything
 		}
 		else {
-			result = BooleanTypedValue.forValue(rightClass.isAssignableFrom(leftValue.getClass()));
+			result = BooleanTypedValue.forValue(rightClass.isInstance(leftValue));
 		}
 		this.type = rightClass;
 		if (rightOperand instanceof TypeReference) {

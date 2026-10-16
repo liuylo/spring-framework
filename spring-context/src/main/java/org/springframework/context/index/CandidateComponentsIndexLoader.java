@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,8 +21,8 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
-import java.util.concurrent.ConcurrentMap;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -37,11 +37,9 @@ import org.springframework.util.ConcurrentReferenceHashMap;
  * Candidate components index loading mechanism for internal use within the framework.
  *
  * @author Stephane Nicoll
+ * @author Juergen Hoeller
  * @since 5.0
- * @deprecated as of 6.1, in favor of the AOT engine.
  */
-@Deprecated(since = "6.1", forRemoval = true)
-@SuppressWarnings("removal")
 public final class CandidateComponentsIndexLoader {
 
 	/**
@@ -66,8 +64,7 @@ public final class CandidateComponentsIndexLoader {
 
 	private static final Log logger = LogFactory.getLog(CandidateComponentsIndexLoader.class);
 
-	private static final ConcurrentMap<ClassLoader, CandidateComponentsIndex> cache =
-			new ConcurrentReferenceHashMap<>();
+	private static final Map<ClassLoader, CandidateComponentsIndex> cache = new ConcurrentReferenceHashMap<>();
 
 
 	private CandidateComponentsIndexLoader() {
@@ -117,6 +114,30 @@ public final class CandidateComponentsIndexLoader {
 			throw new IllegalStateException("Unable to load indexes from location [" +
 					COMPONENTS_RESOURCE_LOCATION + "]", ex);
 		}
+	}
+
+
+	/**
+	 * Programmatically add the given index instance for the given ClassLoader,
+	 * replacing a file-determined index with a programmatically composed index.
+	 * <p>The index instance will usually be pre-populated for AOT runtime setups
+	 * or test scenarios with pre-configured results for runtime-attempted scans.
+	 * Alternatively, it may be empty for it to get populated during AOT processing
+	 * or a test run, for subsequent introspection the index-recorded candidate types.
+	 * @param classLoader the ClassLoader to add the index for
+	 * @param index the associated CandidateComponentsIndex instance
+	 * @since 7.0
+	 */
+	public static void addIndex(ClassLoader classLoader, CandidateComponentsIndex index) {
+		cache.put(classLoader, index);
+	}
+
+	/**
+	 * Clear the runtime index cache.
+	 * @since 7.0
+	 */
+	public static void clearCache() {
+		cache.clear();
 	}
 
 }

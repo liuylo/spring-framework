@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,12 +19,14 @@ package org.springframework.http.client;
 import java.io.IOException;
 import java.net.URI;
 import java.time.Duration;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 
 import io.netty.channel.ChannelOption;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.jspecify.annotations.Nullable;
+import reactor.core.scheduler.Schedulers;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.resources.ConnectionProvider;
 import reactor.netty.resources.LoopResources;
@@ -42,25 +44,32 @@ import org.springframework.util.Assert;
  * @author Arjen Poutsma
  * @author Juergen Hoeller
  * @author Sebastien Deleuze
+ * @author Brian Clozel
  * @since 6.2
  */
 public class ReactorClientHttpRequestFactory implements ClientHttpRequestFactory, SmartLifecycle {
 
 	private static final Log logger = LogFactory.getLog(ReactorClientHttpRequestFactory.class);
 
+	private static final Duration ONE_MILLISECOND = Duration.ofMillis(1);
+
+	private static final Duration MAX_CONNECT_TIMEOUT = Duration.ofMillis(Integer.MAX_VALUE);
+
 	private static final Function<HttpClient, HttpClient> defaultInitializer =
-			client -> client.compress(true).responseTimeout(Duration.ofSeconds(10));
+			client -> client.compress(true)
+					.responseTimeout(Duration.ofSeconds(10))
+					.proxyWithSystemProperties();
 
 
 	private final @Nullable ReactorResourceFactory resourceFactory;
 
 	private final @Nullable Function<HttpClient, HttpClient> mapper;
 
+	private @Nullable Executor executor;
+
 	private @Nullable Integer connectTimeout;
 
 	private @Nullable Duration readTimeout;
-
-	private @Nullable Duration exchangeTimeout;
 
 	private volatile @Nullable HttpClient httpClient;
 
@@ -69,7 +78,8 @@ public class ReactorClientHttpRequestFactory implements ClientHttpRequestFactory
 
 	/**
 	 * Constructor with default client, created via {@link HttpClient#create()},
-	 * and with {@link HttpClient#compress compression} enabled.
+	 * and with {@link HttpClient#compress compression} and
+	 * {@link HttpClient#proxyWithSystemProperties() proxyWithSystemProperties} enabled.
 	 */
 	public ReactorClientHttpRequestFactory() {
 		this(defaultInitializer.apply(HttpClient.create()));
@@ -118,18 +128,31 @@ public class ReactorClientHttpRequestFactory implements ClientHttpRequestFactory
 			client = client.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, this.connectTimeout);
 		}
 		if (this.readTimeout != null) {
-			client = client.responseTimeout(this.readTimeout);
+			client = client.responseTimeout(responseTimeout(this.readTimeout));
 		}
 		return client;
 	}
 
+	/**
+	 * Set the {@code Executor} to use for performing blocking I/O operations.
+	 * <p>If no executor is provided, the request will use an {@link Schedulers#boundedElastic() elastic scheduler}.
+	 * @param executor the executor to use.
+	 * @since 6.2.13
+	 */
+	public void setExecutor(Executor executor) {
+		Assert.notNull(executor, "Executor must not be null");
+		this.executor = executor;
+	}
 
 	/**
-	 * Set the connect timeout value on the underlying client.
-	 * Effectively, a shortcut for
-	 * {@code httpClient.option(CONNECT_TIMEOUT_MILLIS, timeout)}.
-	 * <p>By default, set to 30 seconds.
-	 * @param connectTimeout the timeout value in millis; use 0 to never time out.
+	 * Set the connect timeout on the underlying client, in milliseconds.
+	 * <p>Effectively, a shortcut for
+	 * {@code httpClient.option(CONNECT_TIMEOUT_MILLIS, connectTimeout)}.
+	 * <p>A timeout value of 0 specifies an infinite timeout.
+	 * <p>Negative values are not permitted.
+	 * <p>Default is 30 seconds, as defined by Reactor Netty.
+	 * @param connectTimeout the connect timeout in milliseconds
+	 * @see #setConnectTimeout(Duration)
 	 * @see HttpClient#option(ChannelOption, Object)
 	 * @see ChannelOption#CONNECT_TIMEOUT_MILLIS
 	 * @see <a href="https://projectreactor.io/docs/netty/release/reference/index.html#connection-timeout">Connection Timeout</a>
@@ -144,31 +167,60 @@ public class ReactorClientHttpRequestFactory implements ClientHttpRequestFactory
 	}
 
 	/**
-	 * Variant of {@link #setConnectTimeout(int)} with a {@link Duration} value.
+	 * Set the connect timeout on the underlying client, as a {@code Duration}.
+	 * <p>Effectively, a shortcut for
+	 * {@code httpClient.option(CONNECT_TIMEOUT_MILLIS, connectTimeout.toMillis())}.
+	 * <p>A timeout value of 0 specifies an infinite timeout.
+	 * <p>Negative values and values less than one millisecond (other than 0)
+	 * are not permitted, and values exceeding {@link Integer#MAX_VALUE}
+	 * milliseconds are limited to {@code Integer.MAX_VALUE} milliseconds.
+	 * <p>Default is 30 seconds, as defined by Reactor Netty.
+	 * @param connectTimeout the connect timeout as a {@code Duration}
+	 * @see #setConnectTimeout(int)
 	 */
 	public void setConnectTimeout(Duration connectTimeout) {
 		Assert.notNull(connectTimeout, "ConnectTimeout must not be null");
-		setConnectTimeout((int) connectTimeout.toMillis());
+		Assert.isTrue(!connectTimeout.isNegative(), "Timeout must be a non-negative value");
+		Assert.isTrue(connectTimeout.isZero() || connectTimeout.compareTo(ONE_MILLISECOND) >= 0,
+				"Timeout must be zero or at least one millisecond");
+		int millis = (connectTimeout.compareTo(MAX_CONNECT_TIMEOUT) > 0 ?
+				Integer.MAX_VALUE : (int) connectTimeout.toMillis());
+		setConnectTimeout(millis);
 	}
 
 	/**
-	 * Set the read timeout value on the underlying client.
-	 * Effectively, a shortcut for {@link HttpClient#responseTimeout(Duration)}.
-	 * <p>By default, set to 10 seconds.
-	 * @param timeout the read timeout value in millis; must be > 0.
+	 * Set the read timeout on the underlying client, as a {@code Duration}.
+	 * <p>Effectively, a shortcut for {@link HttpClient#responseTimeout(Duration)}.
+	 * <p>A timeout value of 0 specifies an infinite timeout.
+	 * <p>Negative values and values less than one millisecond (other than 0)
+	 * are not permitted.
+	 * <p>Default is 10 seconds, unless a pre-configured {@link HttpClient} is
+	 * supplied.
+	 * @param readTimeout the read timeout as a {@code Duration}
+	 * @see #setReadTimeout(long)
 	 */
-	public void setReadTimeout(Duration timeout) {
-		Assert.notNull(timeout, "ReadTimeout must not be null");
-		Assert.isTrue(timeout.toMillis() > 0, "Timeout must be a positive value");
-		this.readTimeout = timeout;
+	public void setReadTimeout(Duration readTimeout) {
+		Assert.notNull(readTimeout, "ReadTimeout must not be null");
+		Assert.isTrue(!readTimeout.isNegative(), "Timeout must be a non-negative value");
+		Assert.isTrue(readTimeout.isZero() || readTimeout.compareTo(ONE_MILLISECOND) >= 0,
+				"Timeout must be zero or at least one millisecond");
+		this.readTimeout = readTimeout;
 		HttpClient httpClient = this.httpClient;
 		if (httpClient != null) {
-			this.httpClient = httpClient.responseTimeout(timeout);
+			this.httpClient = httpClient.responseTimeout(responseTimeout(readTimeout));
 		}
 	}
 
 	/**
-	 * Variant of {@link #setReadTimeout(Duration)} with a long value.
+	 * Set the read timeout on the underlying client, in milliseconds.
+	 * <p>Effectively, a shortcut for
+	 * {@code httpClient.responseTimeout(Duration.ofMillis(readTimeout))}.
+	 * <p>A timeout value of 0 specifies an infinite timeout.
+	 * <p>Negative values are not permitted.
+	 * <p>Default is 10 seconds, unless a pre-configured {@link HttpClient} is
+	 * supplied.
+	 * @param readTimeout the read timeout in milliseconds
+	 * @see #setReadTimeout(Duration)
 	 */
 	public void setReadTimeout(long readTimeout) {
 		setReadTimeout(Duration.ofMillis(readTimeout));
@@ -183,7 +235,7 @@ public class ReactorClientHttpRequestFactory implements ClientHttpRequestFactory
 					"Expected HttpClient or ResourceFactory and mapper");
 			client = createHttpClient(this.resourceFactory, this.mapper);
 		}
-		return new ReactorClientHttpRequest(client, httpMethod, uri, this.exchangeTimeout);
+		return new ReactorClientHttpRequest(client, httpMethod, uri, this.executor);
 	}
 
 
@@ -219,6 +271,16 @@ public class ReactorClientHttpRequestFactory implements ClientHttpRequestFactory
 	@Override
 	public int getPhase() {
 		return 1; // start after ReactorResourceFactory (0)
+	}
+
+
+	/**
+	 * Map a read timeout of 0 to {@code null}, which disables the response
+	 * timeout in Reactor Netty. Passing {@code Duration.ZERO} through would
+	 * instead result in a response timeout of one millisecond.
+	 */
+	private static @Nullable Duration responseTimeout(Duration readTimeout) {
+		return (readTimeout.isZero() ? null : readTimeout);
 	}
 
 }

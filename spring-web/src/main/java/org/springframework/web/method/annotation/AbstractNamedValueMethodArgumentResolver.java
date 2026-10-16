@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -72,6 +72,8 @@ import org.springframework.web.method.support.ModelAndViewContainer;
  */
 public abstract class AbstractNamedValueMethodArgumentResolver implements HandlerMethodArgumentResolver {
 
+	private static final boolean KOTLIN_REFLECT_PRESENT = KotlinDetector.isKotlinReflectPresent();
+
 	private final @Nullable ConfigurableBeanFactory configurableBeanFactory;
 
 	private final @Nullable BeanExpressionContext expressionContext;
@@ -103,8 +105,7 @@ public abstract class AbstractNamedValueMethodArgumentResolver implements Handle
 
 		NamedValueInfo namedValueInfo = getNamedValueInfo(parameter);
 		MethodParameter nestedParameter = parameter.nestedIfOptional();
-		boolean hasDefaultValue = KotlinDetector.isKotlinReflectPresent() &&
-				KotlinDetector.isKotlinType(parameter.getDeclaringClass()) &&
+		boolean hasDefaultValue = KOTLIN_REFLECT_PRESENT && KotlinDetector.isKotlinType(parameter.getDeclaringClass()) &&
 				KotlinDelegate.hasDefaultValue(nestedParameter);
 
 		Object resolvedName = resolveEmbeddedValuesAndExpressions(namedValueInfo.name);
@@ -276,7 +277,7 @@ public abstract class AbstractNamedValueMethodArgumentResolver implements Handle
 
 		WebDataBinder binder = binderFactory.createBinder(webRequest, null, namedValueInfo.name);
 		Class<?> parameterType = parameter.getParameterType();
-		if (KotlinDetector.isKotlinPresent() && KotlinDetector.isInlineClass(parameterType)) {
+		if (KotlinDetector.isInlineClass(parameterType)) {
 			Constructor<?> ctor = BeanUtils.findPrimaryConstructor(parameterType);
 			if (ctor != null) {
 				parameterType = ctor.getParameterTypes()[0];

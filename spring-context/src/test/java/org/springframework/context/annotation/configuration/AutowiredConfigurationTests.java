@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package org.springframework.context.annotation.configuration;
 import java.io.IOException;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -29,12 +30,13 @@ import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.ObjectFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.parsing.BeanDefinitionParsingException;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.beans.factory.support.RootBeanDefinition;
 import org.springframework.beans.factory.xml.XmlBeanDefinitionReader;
-import org.springframework.beans.testfixture.beans.Colour;
+import org.springframework.beans.testfixture.beans.Color;
 import org.springframework.beans.testfixture.beans.TestBean;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -61,47 +63,57 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 class AutowiredConfigurationTests {
 
 	@Test
-	void testAutowiredConfigurationDependencies() {
+	void autowiredConfigurationDependencies() {
 		ClassPathXmlApplicationContext context = new ClassPathXmlApplicationContext(
 				AutowiredConfigurationTests.class.getSimpleName() + ".xml", AutowiredConfigurationTests.class);
 
-		assertThat(context.getBean("colour", Colour.class)).isEqualTo(Colour.RED);
-		assertThat(context.getBean("testBean", TestBean.class).getName()).isEqualTo(Colour.RED.toString());
+		assertThat(context.getBean("color", Color.class)).isEqualTo(Color.RED);
+		assertThat(context.getBean("testBean", TestBean.class).getName()).isEqualTo(Color.RED.toString());
 		context.close();
 	}
 
 	@Test
-	void testAutowiredConfigurationMethodDependencies() {
+	void autowiredConfigurationMethodDependencies() {
 		AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext(
 				AutowiredMethodConfig.class, ColorConfig.class);
 
-		assertThat(context.getBean(Colour.class)).isEqualTo(Colour.RED);
+		assertThat(context.getBean(Color.class)).isEqualTo(Color.RED);
 		assertThat(context.getBean(TestBean.class).getName()).isEqualTo("RED-RED");
 		context.close();
 	}
 
 	@Test
-	void testAutowiredConfigurationMethodDependenciesWithOptionalAndAvailable() {
+	void autowiredConfigurationMethodDependenciesWithOptionalAndAvailable() {
 		AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext(
 				OptionalAutowiredMethodConfig.class, ColorConfig.class);
 
-		assertThat(context.getBean(Colour.class)).isEqualTo(Colour.RED);
+		assertThat(context.getBean(Color.class)).isEqualTo(Color.RED);
 		assertThat(context.getBean(TestBean.class).getName()).isEqualTo("RED-RED");
 		context.close();
 	}
 
 	@Test
-	void testAutowiredConfigurationMethodDependenciesWithOptionalAndNotAvailable() {
+	void autowiredConfigurationMethodDependenciesWithOptionalAndNotAvailable() {
 		AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext(
 				OptionalAutowiredMethodConfig.class);
 
-		assertThat(context.getBeansOfType(Colour.class)).isEmpty();
+		assertThat(context.getBeansOfType(Color.class)).isEmpty();
 		assertThat(context.getBean(TestBean.class).getName()).isEmpty();
 		context.close();
 	}
 
 	@Test
-	void testAutowiredSingleConstructorSupported() {
+	void autowiredConfigurationMethodDependenciesWithQualifier() {
+		AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext(
+				QualifiedAutowiredMethodConfig.class);
+
+		assertThat(context.getBeansOfType(Color.class)).isEmpty();
+		assertThat(context.getBean(TestBean.class).getName()).isEmpty();
+		context.close();
+	}
+
+	@Test
+	void autowiredSingleConstructorSupported() {
 		DefaultListableBeanFactory factory = new DefaultListableBeanFactory();
 		new XmlBeanDefinitionReader(factory).loadBeanDefinitions(
 				new ClassPathResource("annotation-config.xml", AutowiredConstructorConfig.class));
@@ -109,12 +121,12 @@ class AutowiredConfigurationTests {
 		ctx.registerBeanDefinition("config1", new RootBeanDefinition(AutowiredConstructorConfig.class));
 		ctx.registerBeanDefinition("config2", new RootBeanDefinition(ColorConfig.class));
 		ctx.refresh();
-		assertThat(ctx.getBean(Colour.class)).isSameAs(ctx.getBean(AutowiredConstructorConfig.class).colour);
+		assertThat(ctx.getBean(Color.class)).isSameAs(ctx.getBean(AutowiredConstructorConfig.class).color);
 		ctx.close();
 	}
 
 	@Test
-	void testObjectFactoryConstructorWithTypeVariable() {
+	void objectFactoryConstructorWithTypeVariable() {
 		DefaultListableBeanFactory factory = new DefaultListableBeanFactory();
 		new XmlBeanDefinitionReader(factory).loadBeanDefinitions(
 				new ClassPathResource("annotation-config.xml", ObjectFactoryConstructorConfig.class));
@@ -122,12 +134,12 @@ class AutowiredConfigurationTests {
 		ctx.registerBeanDefinition("config1", new RootBeanDefinition(ObjectFactoryConstructorConfig.class));
 		ctx.registerBeanDefinition("config2", new RootBeanDefinition(ColorConfig.class));
 		ctx.refresh();
-		assertThat(ctx.getBean(Colour.class)).isSameAs(ctx.getBean(ObjectFactoryConstructorConfig.class).colour);
+		assertThat(ctx.getBean(Color.class)).isSameAs(ctx.getBean(ObjectFactoryConstructorConfig.class).color);
 		ctx.close();
 	}
 
 	@Test
-	void testAutowiredAnnotatedConstructorSupported() {
+	void autowiredAnnotatedConstructorSupported() {
 		DefaultListableBeanFactory factory = new DefaultListableBeanFactory();
 		new XmlBeanDefinitionReader(factory).loadBeanDefinitions(
 				new ClassPathResource("annotation-config.xml", MultipleConstructorConfig.class));
@@ -135,12 +147,12 @@ class AutowiredConfigurationTests {
 		ctx.registerBeanDefinition("config1", new RootBeanDefinition(MultipleConstructorConfig.class));
 		ctx.registerBeanDefinition("config2", new RootBeanDefinition(ColorConfig.class));
 		ctx.refresh();
-		assertThat(ctx.getBean(Colour.class)).isSameAs(ctx.getBean(MultipleConstructorConfig.class).colour);
+		assertThat(ctx.getBean(Color.class)).isSameAs(ctx.getBean(MultipleConstructorConfig.class).color);
 		ctx.close();
 	}
 
 	@Test
-	void testValueInjection() {
+	void valueInjection() {
 		ClassPathXmlApplicationContext context = new ClassPathXmlApplicationContext(
 				"ValueInjectionTests.xml", AutowiredConfigurationTests.class);
 		doTestValueInjection(context);
@@ -148,7 +160,7 @@ class AutowiredConfigurationTests {
 	}
 
 	@Test
-	void testValueInjectionWithMetaAnnotation() {
+	void valueInjectionWithMetaAnnotation() {
 		AnnotationConfigApplicationContext context =
 				new AnnotationConfigApplicationContext(ValueConfigWithMetaAnnotation.class);
 		doTestValueInjection(context);
@@ -156,7 +168,7 @@ class AutowiredConfigurationTests {
 	}
 
 	@Test
-	void testValueInjectionWithAliasedMetaAnnotation() {
+	void valueInjectionWithAliasedMetaAnnotation() {
 		AnnotationConfigApplicationContext context =
 				new AnnotationConfigApplicationContext(ValueConfigWithAliasedMetaAnnotation.class);
 		doTestValueInjection(context);
@@ -164,7 +176,7 @@ class AutowiredConfigurationTests {
 	}
 
 	@Test
-	void testValueInjectionWithProviderFields() {
+	void valueInjectionWithProviderFields() {
 		AnnotationConfigApplicationContext context =
 				new AnnotationConfigApplicationContext(ValueConfigWithProviderFields.class);
 		doTestValueInjection(context);
@@ -172,7 +184,7 @@ class AutowiredConfigurationTests {
 	}
 
 	@Test
-	void testValueInjectionWithProviderConstructorArguments() {
+	void valueInjectionWithProviderConstructorArguments() {
 		AnnotationConfigApplicationContext context =
 				new AnnotationConfigApplicationContext(ValueConfigWithProviderConstructorArguments.class);
 		doTestValueInjection(context);
@@ -180,7 +192,7 @@ class AutowiredConfigurationTests {
 	}
 
 	@Test
-	void testValueInjectionWithProviderMethodArguments() {
+	void valueInjectionWithProviderMethodArguments() {
 		AnnotationConfigApplicationContext context =
 				new AnnotationConfigApplicationContext(ValueConfigWithProviderMethodArguments.class);
 		doTestValueInjection(context);
@@ -188,7 +200,7 @@ class AutowiredConfigurationTests {
 	}
 
 	@Test
-	void testValueInjectionWithAccidentalAutowiredAnnotations() {
+	void valueInjectionWithAccidentalAutowiredAnnotations() {
 		assertThatExceptionOfType(BeanDefinitionParsingException.class).isThrownBy(() ->
 				new AnnotationConfigApplicationContext(ValueConfigWithAccidentalAutowiredAnnotations.class));
 	}
@@ -220,7 +232,7 @@ class AutowiredConfigurationTests {
 	}
 
 	@Test
-	void testCustomPropertiesWithClassPathContext() throws IOException {
+	void customPropertiesWithClassPathContext() throws IOException {
 		ClassPathXmlApplicationContext context = new ClassPathXmlApplicationContext(
 				"AutowiredConfigurationTests-custom.xml", AutowiredConfigurationTests.class);
 
@@ -231,7 +243,7 @@ class AutowiredConfigurationTests {
 	}
 
 	@Test
-	void testCustomPropertiesWithGenericContext() throws IOException {
+	void customPropertiesWithGenericContext() throws IOException {
 		GenericApplicationContext context = new GenericApplicationContext();
 		new XmlBeanDefinitionReader(context).loadBeanDefinitions(
 				new ClassPathResource("AutowiredConfigurationTests-custom.xml", AutowiredConfigurationTests.class));
@@ -244,7 +256,7 @@ class AutowiredConfigurationTests {
 	}
 
 	@Test
-	void testValueInjectionWithRecord() {
+	void valueInjectionWithRecord() {
 		System.setProperty("recordBeanName", "enigma");
 		try (GenericApplicationContext context = new AnnotationConfigApplicationContext(RecordBean.class)) {
 			assertThat(context.getBean(RecordBean.class).name()).isEqualTo("enigma");
@@ -263,11 +275,11 @@ class AutowiredConfigurationTests {
 	static class AutowiredConfig {
 
 		@Autowired
-		private Colour colour;
+		private Color color;
 
 		@Bean
 		public TestBean testBean() {
-			return new TestBean(colour.toString());
+			return new TestBean(color.toString());
 		}
 	}
 
@@ -276,8 +288,8 @@ class AutowiredConfigurationTests {
 	static class AutowiredMethodConfig {
 
 		@Bean
-		public TestBean testBean(Colour colour, List<Colour> colours) {
-			return new TestBean(colour.toString() + "-" + colours.get(0).toString());
+		public TestBean testBean(Color color, List<Color> colors) {
+			return new TestBean(color + "-" + colors.get(0));
 		}
 	}
 
@@ -286,13 +298,32 @@ class AutowiredConfigurationTests {
 	static class OptionalAutowiredMethodConfig {
 
 		@Bean
-		public TestBean testBean(Optional<Colour> colour, Optional<List<Colour>> colours) {
-			if (colour.isEmpty() && colours.isEmpty()) {
+		public TestBean testBean(Optional<Color> color, Optional<List<Color>> colors) {
+			if (color.isEmpty() && colors.isEmpty()) {
 				return new TestBean("");
 			}
 			else {
-				return new TestBean(colour.get() + "-" + colours.get().get(0).toString());
+				return new TestBean(color.get() + "-" + colors.get().get(0));
 			}
+		}
+	}
+
+
+	@Configuration
+	static class QualifiedAutowiredMethodConfig {
+
+		@Bean
+		@Qualifier("testBean")
+		public TestBean testBean(Optional<Color> color, Optional<List<Color>> colors) {
+			if (!color.isEmpty() || !colors.isEmpty()) {
+				throw new IllegalStateException("Unexpected match: " + color + " " + colors);
+			}
+			return new TestBean("");
+		}
+
+		@Bean
+		public List<?> someList() {
+			return Collections.singletonList(new TestBean("shouldNotMatch"));
 		}
 	}
 
@@ -300,11 +331,11 @@ class AutowiredConfigurationTests {
 	@Configuration
 	static class AutowiredConstructorConfig {
 
-		Colour colour;
+		Color color;
 
 		// @Autowired
-		AutowiredConstructorConfig(Colour colour) {
-			this.colour = colour;
+		AutowiredConstructorConfig(Color color) {
+			this.color = color;
 		}
 	}
 
@@ -312,11 +343,11 @@ class AutowiredConfigurationTests {
 	@Configuration
 	static class ObjectFactoryConstructorConfig {
 
-		Colour colour;
+		Color color;
 
 		// @Autowired
-		ObjectFactoryConstructorConfig(ObjectFactory<Colour> colourFactory) {
-			this.colour = colourFactory.getObject();
+		ObjectFactoryConstructorConfig(ObjectFactory<Color> colorFactory) {
+			this.color = colorFactory.getObject();
 		}
 	}
 
@@ -324,15 +355,15 @@ class AutowiredConfigurationTests {
 	@Configuration
 	static class MultipleConstructorConfig {
 
-		Colour colour;
+		Color color;
 
 		@Autowired
-		MultipleConstructorConfig(Colour colour) {
-			this.colour = colour;
+		MultipleConstructorConfig(Color color) {
+			this.color = color;
 		}
 
 		MultipleConstructorConfig(String test) {
-			this.colour = new Colour(test);
+			this.color = Color.BLUE;
 		}
 	}
 
@@ -341,8 +372,8 @@ class AutowiredConfigurationTests {
 	static class ColorConfig {
 
 		@Bean
-		public Colour colour() {
-			return Colour.RED;
+		public Color color() {
+			return Color.RED;
 		}
 	}
 

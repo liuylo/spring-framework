@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import java.lang.reflect.Parameter;
 import org.jspecify.annotations.Nullable;
 
 /**
- * {@link ParameterNameDiscoverer} implementation which uses JDK 8's reflection facilities
+ * {@link ParameterNameDiscoverer} implementation which uses Java's reflection facilities
  * for introspecting parameter names (based on the "-parameters" compiler flag).
  *
  * <p>This is a key element of {@link DefaultParameterNameDiscoverer} where it is being

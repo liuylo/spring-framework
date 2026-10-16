@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -71,10 +72,12 @@ import org.springframework.util.ObjectUtils;
 import org.springframework.validation.BindException;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.accept.ApiVersionStrategy;
 import org.springframework.web.bind.ServletRequestDataBinder;
 import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.servlet.support.ExtendedServletRequestDataBinder;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import org.springframework.web.util.ServletRequestPathUtils;
 import org.springframework.web.util.UriBuilder;
@@ -97,6 +100,8 @@ class DefaultServerRequest implements ServerRequest {
 
 	private final List<HttpMessageConverter<?>> messageConverters;
 
+	private final @Nullable ApiVersionStrategy versionStrategy;
+
 	private final MultiValueMap<String, String> params;
 
 	private final Map<String, Object> attributes;
@@ -105,8 +110,16 @@ class DefaultServerRequest implements ServerRequest {
 
 
 	public DefaultServerRequest(HttpServletRequest servletRequest, List<HttpMessageConverter<?>> messageConverters) {
+		this(servletRequest, messageConverters, null);
+	}
+
+	public DefaultServerRequest(
+			HttpServletRequest servletRequest, List<HttpMessageConverter<?>> messageConverters,
+			@Nullable ApiVersionStrategy versionStrategy) {
+
 		this.serverHttpRequest = new ServletServerHttpRequest(servletRequest);
 		this.messageConverters = List.copyOf(messageConverters);
+		this.versionStrategy = versionStrategy;
 
 		this.headers = new DefaultRequestHeaders(this.serverHttpRequest.getHeaders());
 		this.params = CollectionUtils.toMultiValueMap(new ServletParametersMap(servletRequest));
@@ -122,12 +135,6 @@ class DefaultServerRequest implements ServerRequest {
 	@Override
 	public HttpMethod method() {
 		return HttpMethod.valueOf(servletRequest().getMethod());
-	}
-
-	@Override
-	@Deprecated
-	public String methodName() {
-		return servletRequest().getMethod();
 	}
 
 	@Override
@@ -176,6 +183,11 @@ class DefaultServerRequest implements ServerRequest {
 	@Override
 	public List<HttpMessageConverter<?>> messageConverters() {
 		return this.messageConverters;
+	}
+
+	@Override
+	public @Nullable ApiVersionStrategy apiVersionStrategy() {
+		return this.versionStrategy;
 	}
 
 	@Override
@@ -236,16 +248,22 @@ class DefaultServerRequest implements ServerRequest {
 	}
 
 	@Override
-	@SuppressWarnings("unchecked")
 	public <T> T bind(Class<T> bindType, Consumer<WebDataBinder> dataBinderCustomizer) throws BindException {
+		return doBind(bindType, dataBinderCustomizer, servletRequest());
+	}
+
+	@SuppressWarnings("unchecked")
+	static <T> T doBind(
+			Class<T> bindType, Consumer<WebDataBinder> dataBinderCustomizer, HttpServletRequest servletRequest)
+			throws BindException {
+
 		Assert.notNull(bindType, "BindType must not be null");
 		Assert.notNull(dataBinderCustomizer, "DataBinderCustomizer must not be null");
 
-		ServletRequestDataBinder dataBinder = new ServletRequestDataBinder(null);
+		ServletRequestDataBinder dataBinder = new ExtendedServletRequestDataBinder(null);
 		dataBinder.setTargetType(ResolvableType.forClass(bindType));
 		dataBinderCustomizer.accept(dataBinder);
 
-		HttpServletRequest servletRequest = servletRequest();
 		dataBinder.construct(servletRequest);
 		dataBinder.bind(servletRequest);
 
@@ -426,7 +444,7 @@ class DefaultServerRequest implements ServerRequest {
 						List<String> value = Arrays.asList(entry.getValue());
 						return new SimpleImmutableEntry<>(entry.getKey(), value);
 					})
-					.collect(Collectors.toSet());
+					.collect(Collectors.toCollection(LinkedHashSet::new));
 		}
 
 		@Override
@@ -650,7 +668,6 @@ class DefaultServerRequest implements ServerRequest {
 			return this.headers.headerNames();
 		}
 
-
 		// Unsupported
 
 		@Override
@@ -683,7 +700,7 @@ class DefaultServerRequest implements ServerRequest {
 			throw new UnsupportedOperationException();
 		}
 
-		// @Override - on Servlet 6.1
+		@Override
 		public void sendRedirect(String location, int sc, boolean clearBuffer) throws IOException {
 			throw new UnsupportedOperationException();
 		}
@@ -702,7 +719,6 @@ class DefaultServerRequest implements ServerRequest {
 		public void addIntHeader(String name, int value) {
 			throw new UnsupportedOperationException();
 		}
-
 
 		@Override
 		public String getCharacterEncoding() {
@@ -781,6 +797,11 @@ class DefaultServerRequest implements ServerRequest {
 
 		@Override
 		public Locale getLocale() {
+			throw new UnsupportedOperationException();
+		}
+
+		@SuppressWarnings("unused")  // @Override - on Servlet 6.2
+		public void sendEarlyHints() {
 			throw new UnsupportedOperationException();
 		}
 	}

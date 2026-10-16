@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -74,8 +74,8 @@ public @interface ComponentScan {
 	/**
 	 * Alias for {@link #basePackages}.
 	 * <p>Allows for more concise annotation declarations if no other attributes
-	 * are needed &mdash; for example, {@code @ComponentScan("org.my.pkg")}
-	 * instead of {@code @ComponentScan(basePackages = "org.my.pkg")}.
+	 * are needed &mdash; for example, {@code @ComponentScan("org.example")}
+	 * instead of {@code @ComponentScan(basePackages = "org.example")}.
 	 */
 	@AliasFor("basePackages")
 	String[] value() default {};
@@ -84,8 +84,16 @@ public @interface ComponentScan {
 	 * Base packages to scan for annotated components.
 	 * <p>{@link #value} is an alias for (and mutually exclusive with) this
 	 * attribute.
+	 * <p>Supports {@code ${...}} placeholders which are resolved against the
+	 * {@link org.springframework.core.env.Environment Environment} as well as
+	 * Ant-style package patterns &mdash; for example, {@code "org.example.**"}.
+	 * <p>Multiple packages or patterns may be specified, either separately or
+	 * within a single {@code String} &mdash; for example,
+	 * {@code {"org.example.config", "org.example.service.**"}} or
+	 * {@code "org.example.config, org.example.service.**"}.
 	 * <p>Use {@link #basePackageClasses} for a type-safe alternative to
 	 * String-based package names.
+	 * @see org.springframework.context.ConfigurableApplicationContext#CONFIG_LOCATION_DELIMITERS
 	 */
 	@AliasFor("value")
 	String[] basePackages() default {};
@@ -101,14 +109,18 @@ public @interface ComponentScan {
 	/**
 	 * The {@link BeanNameGenerator} class to be used for naming detected components
 	 * within the Spring container.
-	 * <p>The default value of the {@link BeanNameGenerator} interface itself indicates
+	 * <p>The default value of the {@code BeanNameGenerator} interface itself indicates
 	 * that the scanner used to process this {@code @ComponentScan} annotation should
 	 * use its inherited bean name generator, for example, the default
 	 * {@link AnnotationBeanNameGenerator} or any custom instance supplied to the
-	 * application context at bootstrap time.
+	 * application context at bootstrap time. If a {@link ConfigurationBeanNameGenerator}
+	 * is used (such as {@link FullyQualifiedConfigurationBeanNameGenerator}), it
+	 * also affects the default names for {@link Bean @Bean} methods in
+	 * {@link Configuration @Configuration} classes.
 	 * @see AnnotationConfigApplicationContext#setBeanNameGenerator(BeanNameGenerator)
 	 * @see AnnotationBeanNameGenerator
 	 * @see FullyQualifiedAnnotationBeanNameGenerator
+	 * @see FullyQualifiedConfigurationBeanNameGenerator
 	 */
 	Class<? extends BeanNameGenerator> nameGenerator() default BeanNameGenerator.class;
 

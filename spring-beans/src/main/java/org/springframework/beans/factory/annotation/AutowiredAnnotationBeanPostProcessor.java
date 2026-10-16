@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -84,7 +85,6 @@ import org.springframework.core.annotation.MergedAnnotations;
 import org.springframework.core.type.AnnotationMetadata;
 import org.springframework.core.type.MethodMetadata;
 import org.springframework.core.type.classreading.MetadataReaderFactory;
-import org.springframework.core.type.classreading.SimpleMetadataReaderFactory;
 import org.springframework.javapoet.ClassName;
 import org.springframework.javapoet.CodeBlock;
 import org.springframework.util.Assert;
@@ -271,7 +271,7 @@ public class AutowiredAnnotationBeanPostProcessor implements SmartInstantiationA
 					"AutowiredAnnotationBeanPostProcessor requires a ConfigurableListableBeanFactory: " + beanFactory);
 		}
 		this.beanFactory = clbf;
-		this.metadataReaderFactory = new SimpleMetadataReaderFactory(clbf.getBeanClassLoader());
+		this.metadataReaderFactory = MetadataReaderFactory.create(clbf.getBeanClassLoader());
 	}
 
 
@@ -550,7 +550,7 @@ public class AutowiredAnnotationBeanPostProcessor implements SmartInstantiationA
 		}
 
 		final List<InjectionMetadata.InjectedElement> elements = new ArrayList<>();
-		Class<?> targetClass = clazz;
+		Class<?> targetClass = ClassUtils.getUserClass(clazz);
 
 		do {
 			final List<InjectionMetadata.InjectedElement> fieldElements = new ArrayList<>();
@@ -570,12 +570,11 @@ public class AutowiredAnnotationBeanPostProcessor implements SmartInstantiationA
 
 			final List<InjectionMetadata.InjectedElement> methodElements = new ArrayList<>();
 			ReflectionUtils.doWithLocalMethods(targetClass, method -> {
-				Method bridgedMethod = BridgeMethodResolver.findBridgedMethod(method);
-				if (!BridgeMethodResolver.isVisibilityBridgeMethodPair(method, bridgedMethod)) {
+				if (method.isBridge()) {
 					return;
 				}
-				MergedAnnotation<?> ann = findAutowiredAnnotation(bridgedMethod);
-				if (ann != null && method.equals(ClassUtils.getMostSpecificMethod(method, clazz))) {
+				MergedAnnotation<?> ann = findAutowiredAnnotation(method);
+				if (ann != null && method.equals(BridgeMethodResolver.getMostSpecificMethod(method, clazz))) {
 					if (Modifier.isStatic(method.getModifiers())) {
 						if (logger.isInfoEnabled()) {
 							logger.info("Autowired annotation is not supported on static methods: " + method);
@@ -593,7 +592,7 @@ public class AutowiredAnnotationBeanPostProcessor implements SmartInstantiationA
 						}
 					}
 					boolean required = determineRequiredStatus(ann);
-					PropertyDescriptor pd = BeanUtils.findPropertyForMethod(bridgedMethod, clazz);
+					PropertyDescriptor pd = BeanUtils.findPropertyForMethod(method, clazz);
 					methodElements.add(new AutowiredMethodElement(method, required, pd));
 				}
 			});
@@ -623,12 +622,12 @@ public class AutowiredAnnotationBeanPostProcessor implements SmartInstantiationA
 	 * <p>A 'required' dependency means that autowiring should fail when no beans
 	 * are found. Otherwise, the autowiring process will simply bypass the field
 	 * or method when no beans are found.
-	 * @param ann the Autowired annotation
+	 * @param ann a {@link MergedAnnotation} representing the Autowired annotation
 	 * @return whether the annotation indicates that a dependency is required
 	 */
 	protected boolean determineRequiredStatus(MergedAnnotation<?> ann) {
-		return (ann.getValue(this.requiredParameterName).isEmpty() ||
-				this.requiredParameterValue == ann.getBoolean(this.requiredParameterName));
+		Optional<Boolean> requiredAttribute = ann.getValue(this.requiredParameterName, Boolean.class);
+		return (requiredAttribute.isEmpty() || this.requiredParameterValue == requiredAttribute.get());
 	}
 
 	/**
@@ -812,7 +811,7 @@ public class AutowiredAnnotationBeanPostProcessor implements SmartInstantiationA
 				return;
 			}
 			Method method = (Method) this.member;
-			Object[] arguments;
+			@Nullable Object[] arguments;
 			if (this.cached) {
 				try {
 					arguments = resolveCachedArguments(beanName, this.cachedMethodArguments);
@@ -838,20 +837,20 @@ public class AutowiredAnnotationBeanPostProcessor implements SmartInstantiationA
 			}
 		}
 
-		private Object @Nullable [] resolveCachedArguments(@Nullable String beanName, Object @Nullable [] cachedMethodArguments) {
+		private @Nullable Object @Nullable [] resolveCachedArguments(@Nullable String beanName, Object @Nullable [] cachedMethodArguments) {
 			if (cachedMethodArguments == null) {
 				return null;
 			}
-			Object[] arguments = new Object[cachedMethodArguments.length];
+			@Nullable Object[] arguments = new Object[cachedMethodArguments.length];
 			for (int i = 0; i < arguments.length; i++) {
 				arguments[i] = resolveCachedArgument(beanName, cachedMethodArguments[i]);
 			}
 			return arguments;
 		}
 
-		private Object @Nullable [] resolveMethodArguments(Method method, Object bean, @Nullable String beanName) {
+		private @Nullable Object @Nullable [] resolveMethodArguments(Method method, Object bean, @Nullable String beanName) {
 			int argumentCount = method.getParameterCount();
-			Object[] arguments = new Object[argumentCount];
+			@Nullable Object[] arguments = new Object[argumentCount];
 			DependencyDescriptor[] descriptors = new DependencyDescriptor[argumentCount];
 			Set<String> autowiredBeanNames = CollectionUtils.newLinkedHashSet(argumentCount);
 			Assert.state(beanFactory != null, "No BeanFactory available");

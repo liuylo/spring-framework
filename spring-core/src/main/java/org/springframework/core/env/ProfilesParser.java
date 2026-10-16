@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -88,13 +88,10 @@ final class ProfilesParser {
 				}
 				case "!" -> elements.add(not(parseTokens(expression, tokens, Context.NEGATE)));
 				case ")" -> {
-					Profiles merged = merge(expression, elements, operator);
 					if (context == Context.PARENTHESIS) {
-						return merged;
+						return merge(expression, elements, operator);
 					}
-					elements.clear();
-					elements.add(merged);
-					operator = null;
+					assertWellFormed(expression, false);
 				}
 				default -> {
 					Profiles value = equals(token);
@@ -105,6 +102,7 @@ final class ProfilesParser {
 				}
 			}
 		}
+		assertWellFormed(expression, context != Context.PARENTHESIS);
 		return merge(expression, elements, operator);
 	}
 

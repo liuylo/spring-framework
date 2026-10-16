@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -63,9 +63,13 @@ public abstract class AbstractReactorHttpExchangeAdapter implements ReactorHttpE
 	/**
 	 * Configure how long to block for the response of an HTTP service method
 	 * as described in {@link #getBlockTimeout()}.
+	 * <p>A timeout value of {@code null} or 0 specifies an infinite timeout.
+	 * <p>Negative values are not permitted.
 	 */
 	public void setBlockTimeout(@Nullable Duration blockTimeout) {
-		this.blockTimeout = blockTimeout;
+		Assert.isTrue(blockTimeout == null || !blockTimeout.isNegative(),
+				"Timeout must be a non-negative value");
+		this.blockTimeout = (blockTimeout != null && !blockTimeout.isZero() ? blockTimeout : null);
 	}
 
 	@Override
@@ -94,6 +98,7 @@ public abstract class AbstractReactorHttpExchangeAdapter implements ReactorHttpE
 	}
 
 	@Override
+	@Nullable
 	public <T> T exchangeForBody(HttpRequestValues requestValues, ParameterizedTypeReference<T> bodyType) {
 		return (this.blockTimeout != null ?
 				exchangeForBodyMono(requestValues, bodyType).block(this.blockTimeout) :

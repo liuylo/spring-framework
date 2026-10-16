@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ import static org.springframework.context.testfixture.cache.CacheTestUtils.asser
 import static org.springframework.context.testfixture.cache.CacheTestUtils.assertCacheMiss;
 
 /**
- * Provides various {@link CacheResolver} customisations scenario
+ * Provides various {@link CacheResolver} customizations scenario
  *
  * @author Stephane Nicoll
  * @since 4.1
@@ -206,7 +206,7 @@ class CacheResolverCustomizationTests {
 	}
 
 
-	@CacheConfig(cacheNames = "default")
+	@CacheConfig("default")
 	static class SimpleService {
 
 		private final AtomicLong counter = new AtomicLong();

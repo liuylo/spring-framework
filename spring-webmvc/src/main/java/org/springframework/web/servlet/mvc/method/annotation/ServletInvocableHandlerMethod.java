@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -112,7 +112,7 @@ public class ServletInvocableHandlerMethod extends InvocableHandlerMethod {
 	 * @param providedArgs "given" arguments matched by type (not resolved)
 	 */
 	public void invokeAndHandle(ServletWebRequest webRequest, ModelAndViewContainer mavContainer,
-			Object... providedArgs) throws Exception {
+			@Nullable Object... providedArgs) throws Exception {
 
 		Object returnValue = invokeForRequest(webRequest, mavContainer, providedArgs);
 		setResponseStatus(webRequest);
@@ -197,7 +197,7 @@ public class ServletInvocableHandlerMethod extends InvocableHandlerMethod {
 	 * Create a nested ServletInvocableHandlerMethod subclass that returns the
 	 * given value (or raises an Exception if the value is one) rather than
 	 * actually invoking the controller method. This is useful when processing
-	 * async return values (for example, Callable, DeferredResult, ListenableFuture).
+	 * async return values (for example, Callable, DeferredResult, CompletableFuture).
 	 */
 	ServletInvocableHandlerMethod wrapConcurrentResult(@Nullable Object result) {
 		return new ConcurrentResultHandlerMethod(result, new ConcurrentResultMethodParameter(result));

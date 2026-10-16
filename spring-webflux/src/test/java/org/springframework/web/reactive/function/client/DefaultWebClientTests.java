@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,11 +48,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.when;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests for {@link DefaultWebClient}.
@@ -61,7 +61,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
  * @author Brian Clozel
  */
 @MockitoSettings(strictness = Strictness.LENIENT)
-public class DefaultWebClientTests {
+class DefaultWebClientTests {
 
 	@Mock
 	private ExchangeFunction exchangeFunction;
@@ -104,7 +104,7 @@ public class DefaultWebClientTests {
 	}
 
 	@Test // gh-22705
-	public void uriBuilderWithUriTemplate() {
+	void uriBuilderWithUriTemplate() {
 		this.builder.build().get()
 				.uri("/path/{id}", builder -> builder.queryParam("q", "12").build("identifier"))
 				.retrieve().bodyToMono(Void.class).block(Duration.ofSeconds(10));
@@ -133,35 +133,6 @@ public class DefaultWebClientTests {
 		ClientRequest request = verifyAndGetRequest();
 		assertThat(request.headers().getFirst("Accept")).isEqualTo("application/json");
 		assertThat(request.cookies().getFirst("id")).isEqualTo("123");
-	}
-
-	@Test
-	@SuppressWarnings("deprecation")
-	public void contextFromThreadLocal() {
-		WebClient client = this.builder
-				.filter((request, next) ->
-						// Async, continue on different thread
-						Mono.delay(Duration.ofMillis(10)).then(next.exchange(request)))
-				.filter((request, next) ->
-						Mono.deferContextual(contextView -> {
-							String fooValue = contextView.get("foo");
-							return next.exchange(ClientRequest.from(request).header("foo", fooValue).build());
-						}))
-				.build();
-
-		ThreadLocal<String> fooHolder = new ThreadLocal<>();
-		fooHolder.set("bar");
-		try {
-			client.get().uri("/path")
-					.context(context -> context.put("foo", fooHolder.get()))
-					.retrieve().bodyToMono(Void.class).block(Duration.ofSeconds(10));
-		}
-		finally {
-			fooHolder.remove();
-		}
-
-		ClientRequest request = verifyAndGetRequest();
-		assertThat(request.headers().getFirst("foo")).isEqualTo("bar");
 	}
 
 	@Test
@@ -433,7 +404,7 @@ public class DefaultWebClientTests {
 	}
 
 	@Test // gh-23880
-	public void onStatusHandlersOrderIsPreserved() {
+	void onStatusHandlersOrderIsPreserved() {
 
 		ClientResponse response = ClientResponse.create(HttpStatus.BAD_REQUEST).build();
 		given(exchangeFunction.exchange(any())).willReturn(Mono.just(response));
@@ -483,7 +454,7 @@ public class DefaultWebClientTests {
 	}
 
 	@Test // gh-23880
-	public void onStatusHandlersDefaultHandlerIsLast() {
+	void onStatusHandlersDefaultHandlerIsLast() {
 
 		ClientResponse response = ClientResponse.create(HttpStatus.BAD_REQUEST).build();
 		given(exchangeFunction.exchange(any())).willReturn(Mono.just(response));
@@ -508,7 +479,7 @@ public class DefaultWebClientTests {
 	}
 
 	@Test // gh-26069
-	public void onStatusHandlersApplyForToEntityMethods() {
+	void onStatusHandlersApplyForToEntityMethods() {
 
 		ClientResponse response = ClientResponse.create(HttpStatus.BAD_REQUEST).build();
 		given(exchangeFunction.exchange(any())).willReturn(Mono.just(response));

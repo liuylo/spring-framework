@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -134,7 +134,7 @@ public abstract class MergedAnnotationPredicates {
 		}
 
 		@Override
-		public boolean test(@Nullable MergedAnnotation<A> annotation) {
+		public boolean test(MergedAnnotation<A> annotation) {
 			if (!this.hasLastValue) {
 				this.hasLastValue = true;
 				this.lastValue = this.valueExtractor.apply(annotation);
@@ -162,7 +162,7 @@ public abstract class MergedAnnotationPredicates {
 		}
 
 		@Override
-		public boolean test(@Nullable MergedAnnotation<A> annotation) {
+		public boolean test(MergedAnnotation<A> annotation) {
 			K key = this.keyExtractor.apply(annotation);
 			return this.seen.add(key);
 		}

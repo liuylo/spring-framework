@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -63,7 +63,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebAppConfiguration
 @ContextHierarchy(@ContextConfiguration(classes = AsyncControllerJavaConfigTests.WebConfig.class))
 @DisabledInAotMode("@ContextHierarchy is not supported in AOT")
-public class AsyncControllerJavaConfigTests {
+class AsyncControllerJavaConfigTests {
 
 	@Autowired
 	private WebApplicationContext wac;
@@ -75,14 +75,14 @@ public class AsyncControllerJavaConfigTests {
 
 
 	@BeforeEach
-	public void setup() {
+	void setup() {
 		this.mockMvc = MockMvcBuilders.webAppContextSetup(this.wac).build();
 	}
 
 	// SPR-13615
 
 	@Test
-	public void callableInterceptor() throws Exception {
+	void callableInterceptor() throws Exception {
 		MvcResult mvcResult = this.mockMvc.perform(get("/callable").accept(MediaType.APPLICATION_JSON))
 				.andExpect(status().isOk())
 				.andExpect(request().asyncStarted())

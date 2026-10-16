@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -249,7 +249,7 @@ public abstract class HttpRange {
 			}
 			if (lastBytePos != null && lastBytePos < firstBytePos) {
 				throw new IllegalArgumentException("firstBytePosition=" + firstBytePos +
-						" should be less then or equal to lastBytePosition=" + lastBytePos);
+						" should be less than or equal to lastBytePosition=" + lastBytePos);
 			}
 		}
 

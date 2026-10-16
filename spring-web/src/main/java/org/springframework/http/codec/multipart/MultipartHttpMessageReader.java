@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -106,6 +106,7 @@ public class MultipartHttpMessageReader extends LoggingCodecSupport
 	}
 
 
+	@SuppressWarnings("unchecked")
 	@Override
 	public Mono<MultiValueMap<String, Part>> readMono(ResolvableType elementType,
 			ReactiveHttpInputMessage inputMessage, Map<String, Object> hints) {
@@ -115,6 +116,9 @@ public class MultipartHttpMessageReader extends LoggingCodecSupport
 
 		return this.partReader.read(elementType, inputMessage, allHints)
 				.collectMultimap(Part::name)
+				.doOnDiscard(Map.class, map ->
+						((Map<String, Collection<Part>>) map).values()
+								.forEach(parts -> parts.forEach(part -> part.delete().subscribe())))
 				.doOnNext(map ->
 					LogFormatUtils.traceDebug(logger, traceOn -> Hints.getLogPrefix(hints) + "Parsed " +
 							(isEnableLoggingRequestDetails() ?

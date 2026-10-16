@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,7 +39,10 @@ public interface MethodValidator {
 	 * @param target the target Object
 	 * @param method the target method
 	 * @return the applicable validation groups as a {@code Class} array
+	 * @deprecated in favor of
+	 * {@link org.springframework.validation.annotation.ValidationAnnotationUtils#determineValidationGroups(Object, Method)}
 	 */
+	@Deprecated(since = "7.0.4", forRemoval = true)
 	Class<?>[] determineValidationGroups(Object target, Method method);
 
 	/**
@@ -48,12 +51,13 @@ public interface MethodValidator {
 	 * @param method the target method
 	 * @param parameters the parameters, if already created and available
 	 * @param arguments the candidate argument values to validate
-	 * @param groups validation groups from {@link #determineValidationGroups}
+	 * @param groups validation groups from
+	 * {@link org.springframework.validation.annotation.ValidationAnnotationUtils#determineValidationGroups(Object, Method)}
 	 * @return the result of validation
 	 */
 	MethodValidationResult validateArguments(
 			Object target, Method method, MethodParameter @Nullable [] parameters,
-			Object[] arguments, Class<?>[] groups);
+			@Nullable Object[] arguments, Class<?>[] groups);
 
 	/**
 	 * Delegate to {@link #validateArguments} and handle the validation result,
@@ -64,7 +68,7 @@ public interface MethodValidator {
 	 */
 	default void applyArgumentValidation(
 			Object target, Method method, MethodParameter @Nullable [] parameters,
-			Object[] arguments, Class<?>[] groups) {
+			@Nullable Object[] arguments, Class<?>[] groups) {
 
 		MethodValidationResult result = validateArguments(target, method, parameters, arguments, groups);
 		if (result.hasErrors()) {
@@ -78,7 +82,8 @@ public interface MethodValidator {
 	 * @param method the target method
 	 * @param returnType the return parameter, if already created and available
 	 * @param returnValue the return value to validate
-	 * @param groups validation groups from {@link #determineValidationGroups}
+	 * @param groups validation groups from
+	 * {@link org.springframework.validation.annotation.ValidationAnnotationUtils#determineValidationGroups(Object, Method)}
 	 * @return the result of validation
 	 */
 	MethodValidationResult validateReturnValue(

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,11 +28,12 @@ import org.jspecify.annotations.Nullable;
  * This type is used by {@link CompositeMap}.
  *
  * @author Arjen Poutsma
+ * @author Yanming Zhou
  * @since 6.2
  * @param <K> the type of keys maintained by this map
  * @param <V> the type of mapped values
  */
-final class FilteredMap<K, V> extends AbstractMap<K, V> {
+final class FilteredMap<K, V extends @Nullable Object> extends AbstractMap<K, V> {
 
 	private final Map<K, V> delegate;
 
@@ -55,7 +56,7 @@ final class FilteredMap<K, V> extends AbstractMap<K, V> {
 	@Override
 	public int size() {
 		int size = 0;
-		for (K k : keySet()) {
+		for (K k : this.delegate.keySet()) {
 			if (this.filter.test(k)) {
 				size++;
 			}

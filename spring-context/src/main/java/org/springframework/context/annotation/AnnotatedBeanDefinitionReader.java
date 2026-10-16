@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -109,7 +109,9 @@ public class AnnotatedBeanDefinitionReader {
 
 	/**
 	 * Set the {@code BeanNameGenerator} to use for detected bean classes.
-	 * <p>The default is a {@link AnnotationBeanNameGenerator}.
+	 * <p>The default is an {@link AnnotationBeanNameGenerator}.
+	 * @see FullyQualifiedAnnotationBeanNameGenerator
+	 * @see FullyQualifiedConfigurationBeanNameGenerator
 	 */
 	public void setBeanNameGenerator(@Nullable BeanNameGenerator beanNameGenerator) {
 		this.beanNameGenerator =

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2015 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -58,14 +58,14 @@ public interface ProxyMethodInvocation extends MethodInvocation {
 	 * @return an invocable clone of this invocation.
 	 * {@code proceed()} can be called once per clone.
 	 */
-	MethodInvocation invocableClone(Object... arguments);
+	MethodInvocation invocableClone(@Nullable Object... arguments);
 
 	/**
-	 * Set the arguments to be used on subsequent invocations in the any advice
+	 * Set the arguments to be used on subsequent invocations in any advice
 	 * in this chain.
 	 * @param arguments the argument array
 	 */
-	void setArguments(Object... arguments);
+	void setArguments(@Nullable Object... arguments);
 
 	/**
 	 * Add the specified user attribute with the given value to this invocation.

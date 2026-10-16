@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -153,7 +153,7 @@ public class ConcurrentTaskExecutor implements AsyncTaskExecutor, SchedulingTask
 		this.adaptedExecutor.execute(task);
 	}
 
-	@Deprecated
+	@Deprecated(since = "5.3.16")
 	@Override
 	public void execute(Runnable task, long startTimeout) {
 		this.adaptedExecutor.execute(task, startTimeout);
@@ -165,7 +165,7 @@ public class ConcurrentTaskExecutor implements AsyncTaskExecutor, SchedulingTask
 	}
 
 	@Override
-	public <T> Future<T> submit(Callable<T> task) {
+	public <T extends @Nullable Object> Future<T> submit(Callable<T> task) {
 		return this.adaptedExecutor.submit(task);
 	}
 
@@ -208,7 +208,7 @@ public class ConcurrentTaskExecutor implements AsyncTaskExecutor, SchedulingTask
 		}
 
 		@Override
-		public <T> Future<T> submit(Callable<T> task) {
+		public <T extends @Nullable Object> Future<T> submit(Callable<T> task) {
 			return super.submit(ManagedTaskBuilder.buildManagedTask(task, task.toString()));
 		}
 	}

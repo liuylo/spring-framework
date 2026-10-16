@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,10 +17,13 @@
 package org.springframework.http;
 
 import java.time.Duration;
+import java.util.List;
 
 import org.jspecify.annotations.Nullable;
 
 import org.springframework.util.Assert;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
 
@@ -72,6 +75,7 @@ public final class ResponseCookie extends HttpCookie {
 		Rfc6265Utils.validateCookieValue(value);
 		Rfc6265Utils.validateDomain(domain);
 		Rfc6265Utils.validatePath(path);
+		Rfc6265Utils.validateSameSite(sameSite);
 	}
 
 
@@ -206,7 +210,7 @@ public final class ResponseCookie extends HttpCookie {
 	 * @return a builder to create the cookie with
 	 * @since 6.0
 	 */
-	public static ResponseCookieBuilder from(final String name) {
+	public static ResponseCookieBuilder from(String name) {
 		return new DefaultResponseCookieBuilder(name, null, false);
 	}
 
@@ -217,7 +221,7 @@ public final class ResponseCookie extends HttpCookie {
 	 * @param value the cookie value
 	 * @return a builder to create the cookie with
 	 */
-	public static ResponseCookieBuilder from(final String name, final String value) {
+	public static ResponseCookieBuilder from(String name, @Nullable String value) {
 		return new DefaultResponseCookieBuilder(name, value, false);
 	}
 
@@ -231,9 +235,25 @@ public final class ResponseCookie extends HttpCookie {
 	 * @return a builder to create the cookie with
 	 * @since 5.2.5
 	 */
-	public static ResponseCookieBuilder fromClientResponse(final String name, final String value) {
+	public static ResponseCookieBuilder fromClientResponse(String name, @Nullable String value) {
 		return new DefaultResponseCookieBuilder(name, value, true);
 	}
+
+	/**
+	 * Factory method to obtain a builder that copies from {@link java.net.HttpCookie}.
+	 * @param cookie the source cookie to copy from
+	 * @return a builder to create the cookie with
+	 * @since 7.0
+	 */
+	public static ResponseCookieBuilder from(java.net.HttpCookie cookie) {
+		return ResponseCookie.from(cookie.getName(), cookie.getValue())
+				.domain(cookie.getDomain())
+				.httpOnly(cookie.isHttpOnly())
+				.maxAge(cookie.getMaxAge())
+				.path(cookie.getPath())
+				.secure(cookie.getSecure());
+	}
+
 
 
 	/**
@@ -304,6 +324,32 @@ public final class ResponseCookie extends HttpCookie {
 		 * Create the HttpCookie.
 		 */
 		ResponseCookie build();
+	}
+
+
+	/**
+	 * Contract to parse {@code "Set-Cookie"} headers.
+	 * @since 7.0
+	 */
+	public interface Parser {
+
+		/**
+		 * Parse the given header.
+		 */
+		List<ResponseCookie> parse(String header);
+
+		/**
+		 * Convenience method to parse a list of headers into a {@link MultiValueMap}.
+		 */
+		default MultiValueMap<String, ResponseCookie> parse(List<String> headers) {
+			MultiValueMap<String, ResponseCookie> result = new LinkedMultiValueMap<>();
+			for (String header : headers) {
+				for (ResponseCookie cookie : parse(header)) {
+					result.add(cookie.getName(), cookie);
+				}
+			}
+			return result;
+		}
 	}
 
 
@@ -388,6 +434,18 @@ public final class ResponseCookie extends HttpCookie {
 				}
 			}
 		}
+
+		public static void validateSameSite(@Nullable String sameSite) {
+			if (sameSite == null) {
+				return;
+			}
+			for (int i = 0; i < sameSite.length(); i++) {
+				char c = sameSite.charAt(i);
+				if (c < 0x20 || c > 0x7E || c == ';') {
+					throw new IllegalArgumentException(sameSite + ": Invalid cookie SameSite char '" + c + "'");
+				}
+			}
+		}
 	}
 
 
@@ -416,7 +474,7 @@ public final class ResponseCookie extends HttpCookie {
 
 		private @Nullable String sameSite;
 
-		public DefaultResponseCookieBuilder(String name, @Nullable String value, boolean lenient) {
+		DefaultResponseCookieBuilder(String name, @Nullable String value, boolean lenient) {
 			this.name = name;
 			this.value = value;
 			this.lenient = lenient;

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -66,6 +66,7 @@ public class JettyWebSocketSession extends AbstractWebSocketSession<Session> {
 
 	private final Sinks.@Nullable Empty<Void> handlerCompletionSink;
 
+
 	public JettyWebSocketSession(Session session, HandshakeInfo info, DataBufferFactory factory) {
 		this(session, info, factory, null);
 	}
@@ -104,6 +105,7 @@ public class JettyWebSocketSession extends AbstractWebSocketSession<Session> {
 			});
 		});
 	}
+
 
 	void handleMessage(WebSocketMessage message) {
 		Assert.state(this.sink != null, "No sink available");
@@ -147,7 +149,7 @@ public class JettyWebSocketSession extends AbstractWebSocketSession<Session> {
 		if (JettyWebSocketSession.this.handlerCompletionSink != null) {
 			JettyWebSocketSession.this.handlerCompletionSink.tryEmitError(error);
 		}
-		getDelegate().close(StatusCode.SERVER_ERROR, error.getMessage(), Callback.NOOP);
+		getDelegate().close(StatusCode.SERVER_ERROR, null, Callback.NOOP);
 	}
 
 	void onHandleComplete() {
@@ -187,7 +189,6 @@ public class JettyWebSocketSession extends AbstractWebSocketSession<Session> {
 	}
 
 	protected Mono<Void> sendMessage(WebSocketMessage message) {
-
 		Callback.Completable completable = new Callback.Completable();
 		DataBuffer dataBuffer = message.getPayload();
 		Session session = getDelegate();
@@ -208,7 +209,7 @@ public class JettyWebSocketSession extends AbstractWebSocketSession<Session> {
 							}
 
 							ByteBuffer buffer = iterator.next();
-							boolean last = iterator.hasNext();
+							boolean last = !iterator.hasNext();
 							session.sendPartialBinary(buffer, last, Callback.from(this::succeeded, this::failed));
 							return Action.SCHEDULED;
 						}
@@ -243,4 +244,5 @@ public class JettyWebSocketSession extends AbstractWebSocketSession<Session> {
 		}
 		return Mono.fromFuture(completable);
 	}
+
 }

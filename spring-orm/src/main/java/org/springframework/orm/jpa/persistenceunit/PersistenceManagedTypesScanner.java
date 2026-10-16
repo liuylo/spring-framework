@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package org.springframework.orm.jpa.persistenceunit;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.lang.annotation.Annotation;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -54,12 +55,9 @@ import org.springframework.util.ResourceUtils;
  * @author Stephane Nicoll
  * @since 6.0
  */
-@SuppressWarnings("removal") // components index
 public final class PersistenceManagedTypesScanner {
 
 	private static final String CLASS_RESOURCE_PATTERN = "/**/*.class";
-
-	private static final String PACKAGE_INFO_SUFFIX = ".package-info";
 
 	private static final String IGNORE_CLASSFORMAT_PROPERTY_NAME = "spring.classformat.ignore";
 
@@ -73,6 +71,15 @@ public final class PersistenceManagedTypesScanner {
 		entityTypeFilters.add(new AnnotationTypeFilter(Embeddable.class, false));
 		entityTypeFilters.add(new AnnotationTypeFilter(MappedSuperclass.class, false));
 		entityTypeFilters.add(new AnnotationTypeFilter(Converter.class, false));
+		try {
+			@SuppressWarnings("unchecked")
+			Class<? extends Annotation> discoverable = (Class<? extends Annotation>) ClassUtils.forName(
+					"jakarta.persistence.spi.Discoverable", PersistenceManagedTypesScanner.class.getClassLoader());
+			entityTypeFilters.add(new AnnotationTypeFilter(discoverable, true));
+		}
+		catch (ClassNotFoundException ex) {
+			// JPA 4.0 API not present - simply skip.
+		}
 	}
 
 	private final ResourcePatternResolver resourcePatternResolver;
@@ -139,7 +146,11 @@ public final class PersistenceManagedTypesScanner {
 				try {
 					MetadataReader reader = factory.getMetadataReader(resource);
 					String className = reader.getClassMetadata().getClassName();
-					if (matchesEntityTypeFilter(reader, factory) && this.managedClassNameFilter.matches(className)) {
+					if (className.endsWith(ClassUtils.PACKAGE_INFO_SUFFIX)) {
+						scanResult.managedPackages.add(className.substring(0,
+								className.length() - ClassUtils.PACKAGE_INFO_SUFFIX.length()));
+					}
+					else if (matchesEntityTypeFilter(reader, factory) && this.managedClassNameFilter.matches(className)) {
 						scanResult.managedClassNames.add(className);
 						if (scanResult.persistenceUnitRootUrl == null) {
 							URL url = resource.getURL();
@@ -147,10 +158,6 @@ public final class PersistenceManagedTypesScanner {
 								scanResult.persistenceUnitRootUrl = ResourceUtils.extractJarFileURL(url);
 							}
 						}
-					}
-					else if (className.endsWith(PACKAGE_INFO_SUFFIX)) {
-						scanResult.managedPackages.add(className.substring(0,
-								className.length() - PACKAGE_INFO_SUFFIX.length()));
 					}
 				}
 				catch (FileNotFoundException ex) {
@@ -162,7 +169,7 @@ public final class PersistenceManagedTypesScanner {
 					}
 				}
 				catch (Throwable ex) {
-					throw new PersistenceException("Failed to read candidate component class: " + resource, ex);
+					throw new PersistenceException("Failed to read candidate entity class: " + resource, ex);
 				}
 			}
 		}

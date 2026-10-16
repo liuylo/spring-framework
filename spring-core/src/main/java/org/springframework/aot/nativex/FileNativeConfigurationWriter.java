@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.function.Consumer;
 
@@ -59,7 +60,7 @@ public class FileNativeConfigurationWriter extends NativeConfigurationWriter {
 	protected void writeTo(String fileName, Consumer<BasicJsonWriter> writer) {
 		try {
 			File file = createIfNecessary(fileName);
-			try (FileWriter out = new FileWriter(file)) {
+			try (FileWriter out = new FileWriter(file, StandardCharsets.UTF_8)) {
 				writer.accept(createJsonWriter(out));
 			}
 		}

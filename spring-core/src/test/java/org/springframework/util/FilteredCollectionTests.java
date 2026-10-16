@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,14 +17,17 @@
 package org.springframework.util;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * @author Arjen Poutsma
+ * @author Yanming Zhou
  */
 class FilteredCollectionTests {
 
@@ -74,4 +77,11 @@ class FilteredCollectionTests {
 		assertThat(contained).isFalse();
 	}
 
+	@Test
+	void nullable() {
+		List<@Nullable String> list = Arrays.asList("foo", "bar", null);
+		FilteredCollection<@Nullable String> filtered = new FilteredCollection<>(list, s -> !"bar".equals(s));
+
+		assertThat(filtered).containsExactlyInAnyOrder("foo", null);
+	}
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,9 +21,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import org.jspecify.annotations.Nullable;
@@ -122,7 +123,7 @@ public class ExceptionHandlerMethodResolver {
 		if (exceptions.isEmpty()) {
 			throw new IllegalStateException("No exception types mapped to " + method);
 		}
-		Set<MediaType> mediaTypes = new HashSet<>();
+		Set<MediaType> mediaTypes = new LinkedHashSet<>();
 		for (String mediaType : exceptionHandler.produces()) {
 			try {
 				mediaTypes.add(MediaType.parseMediaType(mediaType));
@@ -226,7 +227,7 @@ public class ExceptionHandlerMethodResolver {
 	 * Return the {@link Method} mapped to the given exception type, or
 	 * {@link #NO_MATCHING_EXCEPTION_HANDLER} if none.
 	 */
-	private @Nullable ExceptionHandlerMappingInfo getMappedMethod(Class<? extends Throwable> exceptionType, MediaType mediaType) {
+	private ExceptionHandlerMappingInfo getMappedMethod(Class<? extends Throwable> exceptionType, MediaType mediaType) {
 		List<ExceptionMapping> matches = new ArrayList<>();
 		for (ExceptionMapping mappingInfo : this.mappedMethods.keySet()) {
 			if (mappingInfo.exceptionType().isAssignableFrom(exceptionType) && mappingInfo.mediaType().isCompatibleWith(mediaType)) {
@@ -235,9 +236,9 @@ public class ExceptionHandlerMethodResolver {
 		}
 		if (!matches.isEmpty()) {
 			if (matches.size() > 1) {
-				matches.sort(new ExceptionMapingComparator(exceptionType, mediaType));
+				matches.sort(new ExceptionMappingComparator(exceptionType, mediaType));
 			}
-			return this.mappedMethods.get(matches.get(0));
+			return Objects.requireNonNull(this.mappedMethods.get(matches.get(0)));
 		}
 		else {
 			return NO_MATCHING_EXCEPTION_HANDLER;
@@ -262,13 +263,13 @@ public class ExceptionHandlerMethodResolver {
 		}
 	}
 
-	private static class ExceptionMapingComparator implements Comparator<ExceptionMapping> {
+	private static class ExceptionMappingComparator implements Comparator<ExceptionMapping> {
 
 		private final ExceptionDepthComparator exceptionDepthComparator;
 
 		private final MediaType mediaType;
 
-		public ExceptionMapingComparator(Class<? extends Throwable> exceptionType, MediaType mediaType) {
+		public ExceptionMappingComparator(Class<? extends Throwable> exceptionType, MediaType mediaType) {
 			this.exceptionDepthComparator = new ExceptionDepthComparator(exceptionType);
 			this.mediaType = mediaType;
 		}

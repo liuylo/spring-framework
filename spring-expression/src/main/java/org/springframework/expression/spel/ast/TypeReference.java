@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -58,6 +58,7 @@ public class TypeReference extends SpelNodeImpl {
 		// TODO Possible optimization: if we cache the discovered type reference, but can we do that?
 		String typeName = (String) this.children[0].getValueInternal(state).getValue();
 		Assert.state(typeName != null, "No type name");
+		state.trackOperation();
 		if (!typeName.contains(".") && Character.isLowerCase(typeName.charAt(0))) {
 			TypeCode tc = TypeCode.valueOf(typeName.toUpperCase(Locale.ROOT));
 			if (tc != TypeCode.OBJECT) {

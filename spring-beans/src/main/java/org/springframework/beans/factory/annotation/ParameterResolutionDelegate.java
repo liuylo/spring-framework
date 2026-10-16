@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2021 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,6 +45,8 @@ import org.springframework.util.ClassUtils;
  */
 public final class ParameterResolutionDelegate {
 
+	private static final Annotation[] EMPTY_ANNOTATION_ARRAY = new Annotation[0];
+
 	private static final AnnotatedElement EMPTY_ANNOTATED_ELEMENT = new AnnotatedElement() {
 		@Override
 		public <T extends Annotation> @Nullable T getAnnotation(Class<T> annotationClass) {
@@ -52,11 +54,11 @@ public final class ParameterResolutionDelegate {
 		}
 		@Override
 		public Annotation[] getAnnotations() {
-			return new Annotation[0];
+			return EMPTY_ANNOTATION_ARRAY;
 		}
 		@Override
 		public Annotation[] getDeclaredAnnotations() {
-			return new Annotation[0];
+			return EMPTY_ANNOTATION_ARRAY;
 		}
 	};
 
@@ -90,16 +92,8 @@ public final class ParameterResolutionDelegate {
 	/**
 	 * Resolve the dependency for the supplied {@link Parameter} from the
 	 * supplied {@link AutowireCapableBeanFactory}.
-	 * <p>Provides comprehensive autowiring support for individual method parameters
-	 * on par with Spring's dependency injection facilities for autowired fields and
-	 * methods, including support for {@link Autowired @Autowired},
-	 * {@link Qualifier @Qualifier}, and {@link Value @Value} with support for property
-	 * placeholders and SpEL expressions in {@code @Value} declarations.
-	 * <p>The dependency is required unless the parameter is annotated or meta-annotated
-	 * with {@link Autowired @Autowired} with the {@link Autowired#required required}
-	 * flag set to {@code false}.
-	 * <p>If an explicit <em>qualifier</em> is not declared, the name of the parameter
-	 * will be used as the qualifier for resolving ambiguities.
+	 * <p>See {@link #resolveDependency(Parameter, int, String, Class, AutowireCapableBeanFactory)}
+	 * for details.
 	 * @param parameter the parameter whose dependency should be resolved (must not be
 	 * {@code null})
 	 * @param parameterIndex the index of the parameter in the constructor or method
@@ -111,13 +105,49 @@ public final class ParameterResolutionDelegate {
 	 * the dependency (must not be {@code null})
 	 * @return the resolved object, or {@code null} if none found
 	 * @throws BeansException if dependency resolution failed
+	 * @see #resolveDependency(Parameter, int, String, Class, AutowireCapableBeanFactory)
+	 */
+	public static @Nullable Object resolveDependency(
+			Parameter parameter, int parameterIndex, Class<?> containingClass, AutowireCapableBeanFactory beanFactory)
+			throws BeansException {
+
+		return resolveDependency(parameter, parameterIndex, null, containingClass, beanFactory);
+	}
+
+	/**
+	 * Resolve the dependency for the supplied {@link Parameter} from the
+	 * supplied {@link AutowireCapableBeanFactory}.
+	 * <p>Provides comprehensive autowiring support for individual method parameters
+	 * on par with Spring's dependency injection facilities for autowired fields and
+	 * methods, including support for {@link Autowired @Autowired},
+	 * {@link Qualifier @Qualifier}, and {@link Value @Value} with support for property
+	 * placeholders and SpEL expressions in {@code @Value} declarations.
+	 * <p>The dependency is required unless the parameter is annotated or meta-annotated
+	 * with {@link Autowired @Autowired} with the {@link Autowired#required required}
+	 * flag set to {@code false}.
+	 * <p>If an explicit <em>qualifier</em> is not declared, the name of the parameter
+	 * (or a supplied custom name) will be used as the qualifier for resolving ambiguities.
+	 * @param parameter the parameter whose dependency should be resolved (must not be
+	 * {@code null})
+	 * @param parameterIndex the index of the parameter in the constructor or method
+	 * that declares the parameter
+	 * @param parameterName a custom name for the parameter; or {@code null} to use
+	 * the default parameter name discovery logic
+	 * @param containingClass the concrete class that contains the parameter; this may
+	 * differ from the class that declares the parameter in that it may be a subclass
+	 * thereof, potentially substituting type variables (must not be {@code null})
+	 * @param beanFactory the {@code AutowireCapableBeanFactory} from which to resolve
+	 * the dependency (must not be {@code null})
+	 * @return the resolved object, or {@code null} if none found
+	 * @throws BeansException if dependency resolution failed
+	 * @since 7.1
 	 * @see #isAutowirable
 	 * @see Autowired#required
 	 * @see SynthesizingMethodParameter#forExecutable(Executable, int)
 	 * @see AutowireCapableBeanFactory#resolveDependency(DependencyDescriptor, String)
 	 */
-	public static @Nullable Object resolveDependency(
-			Parameter parameter, int parameterIndex, Class<?> containingClass, AutowireCapableBeanFactory beanFactory)
+	public static @Nullable Object resolveDependency(Parameter parameter, int parameterIndex,
+			@Nullable String parameterName, Class<?> containingClass, AutowireCapableBeanFactory beanFactory)
 			throws BeansException {
 
 		Assert.notNull(parameter, "Parameter must not be null");
@@ -130,7 +160,7 @@ public final class ParameterResolutionDelegate {
 
 		MethodParameter methodParameter = SynthesizingMethodParameter.forExecutable(
 				parameter.getDeclaringExecutable(), parameterIndex);
-		DependencyDescriptor descriptor = new DependencyDescriptor(methodParameter, required);
+		DependencyDescriptor descriptor = new NamedParameterDependencyDescriptor(methodParameter, required, parameterName);
 		descriptor.setContainingClass(containingClass);
 		return beanFactory.resolveDependency(descriptor, null);
 	}
@@ -167,6 +197,28 @@ public final class ParameterResolutionDelegate {
 			return (index == 0 ? EMPTY_ANNOTATED_ELEMENT : executable.getParameters()[index - 1]);
 		}
 		return parameter;
+	}
+
+
+	@SuppressWarnings("serial")
+	private static class NamedParameterDependencyDescriptor extends DependencyDescriptor {
+
+		private final @Nullable String parameterName;
+
+		NamedParameterDependencyDescriptor(MethodParameter methodParameter, boolean required, @Nullable String parameterName) {
+			super(methodParameter, required);
+			this.parameterName = parameterName;
+		}
+
+		@Override
+		public @Nullable String getDependencyName() {
+			return (this.parameterName != null ? this.parameterName : super.getDependencyName());
+		}
+
+		@Override
+		public boolean usesStandardBeanLookup() {
+			return true;
+		}
 	}
 
 }

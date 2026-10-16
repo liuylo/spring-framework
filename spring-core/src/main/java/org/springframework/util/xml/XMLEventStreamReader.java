@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2021 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,9 +34,11 @@ import javax.xml.stream.events.XMLEvent;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Implementation of the {@link javax.xml.stream.XMLStreamReader} interface that wraps a
- * {@link XMLEventReader}. Useful because the StAX {@link javax.xml.stream.XMLInputFactory}
- * allows one to create an event reader from a stream reader, but not vice-versa.
+ * Implementation of the {@link javax.xml.stream.XMLStreamReader} interface that wraps an
+ * {@link XMLEventReader}.
+ *
+ * <p>Useful because the StAX {@link javax.xml.stream.XMLInputFactory} allows one
+ * to create an event reader from a stream reader, but not vice-versa.
  *
  * @author Arjen Poutsma
  * @since 3.0

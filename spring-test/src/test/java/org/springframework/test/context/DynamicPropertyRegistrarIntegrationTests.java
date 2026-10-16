@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -69,7 +69,7 @@ class DynamicPropertyRegistrarIntegrationTests {
 	}
 
 	@Test
-	void testReceivesDynamicProperties(@Value("${api.url.1}") String apiUrl1, @Value("${api.url.2}") String apiUrl2) {
+	void receivesDynamicProperties(@Value("${api.url.1}") String apiUrl1, @Value("${api.url.2}") String apiUrl2) {
 		assertApiUrlIsDynamic1(apiUrl1);
 		assertApiUrlIsDynamic2(apiUrl2);
 	}

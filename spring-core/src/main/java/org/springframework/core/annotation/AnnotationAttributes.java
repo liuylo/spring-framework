@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,11 +21,12 @@ import java.lang.reflect.Array;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.StringJoiner;
 
 import org.jspecify.annotations.Nullable;
 
 import org.springframework.util.Assert;
-import org.springframework.util.StringUtils;
+import org.springframework.util.ClassUtils;
 
 /**
  * {@link LinkedHashMap} subclass representing annotation attribute
@@ -45,7 +46,7 @@ import org.springframework.util.StringUtils;
  * @see AnnotatedElementUtils
  */
 @SuppressWarnings("serial")
-public class AnnotationAttributes extends LinkedHashMap<String, Object> {
+public class AnnotationAttributes extends LinkedHashMap<String, @Nullable Object> {
 
 	private static final String UNKNOWN = "unknown";
 
@@ -83,7 +84,7 @@ public class AnnotationAttributes extends LinkedHashMap<String, Object> {
 	 * @param map original source of annotation attribute <em>key-value</em> pairs
 	 * @see #fromMap(Map)
 	 */
-	public AnnotationAttributes(Map<String, Object> map) {
+	public AnnotationAttributes(Map<String, @Nullable Object> map) {
 		super(map);
 		this.annotationType = null;
 		this.displayName = UNKNOWN;
@@ -126,7 +127,7 @@ public class AnnotationAttributes extends LinkedHashMap<String, Object> {
 	AnnotationAttributes(Class<? extends Annotation> annotationType, boolean validated) {
 		Assert.notNull(annotationType, "'annotationType' must not be null");
 		this.annotationType = annotationType;
-		this.displayName = annotationType.getName();
+		this.displayName = ClassUtils.getCanonicalName(annotationType);
 		this.validated = validated;
 	}
 
@@ -376,10 +377,10 @@ public class AnnotationAttributes extends LinkedHashMap<String, Object> {
 
 	@Override
 	public String toString() {
-		Iterator<Map.Entry<String, Object>> entries = entrySet().iterator();
+		Iterator<Map.Entry<String, @Nullable Object>> entries = entrySet().iterator();
 		StringBuilder sb = new StringBuilder("{");
 		while (entries.hasNext()) {
-			Map.Entry<String, Object> entry = entries.next();
+			Map.Entry<String, @Nullable Object> entry = entries.next();
 			sb.append(entry.getKey());
 			sb.append('=');
 			sb.append(valueToString(entry.getValue()));
@@ -391,12 +392,23 @@ public class AnnotationAttributes extends LinkedHashMap<String, Object> {
 		return sb.toString();
 	}
 
-	private String valueToString(Object value) {
+	private String valueToString(@Nullable Object value) {
 		if (value == this) {
 			return "(this Map)";
 		}
-		if (value instanceof Object[] objects) {
-			return "[" + StringUtils.arrayToDelimitedString(objects, ", ") + "]";
+		if (value instanceof Class<?> clazz) {
+			return ClassUtils.getCanonicalName(clazz) + ".class";
+		}
+		if (value instanceof Enum<?> enumValue) {
+			return enumValue.name();
+		}
+		if (value != null && value.getClass().isArray()) {
+			int length = Array.getLength(value);
+			StringJoiner sj = new StringJoiner(", ", "[", "]");
+			for (int i = 0; i < length; i++) {
+				sj.add(valueToString(Array.get(value, i)));
+			}
+			return sj.toString();
 		}
 		return String.valueOf(value);
 	}
@@ -410,7 +422,7 @@ public class AnnotationAttributes extends LinkedHashMap<String, Object> {
 	 * to the {@link #AnnotationAttributes(Map)} constructor.
 	 * @param map original source of annotation attribute <em>key-value</em> pairs
 	 */
-	public static @Nullable AnnotationAttributes fromMap(@Nullable Map<String, Object> map) {
+	public static @Nullable AnnotationAttributes fromMap(@Nullable Map<String, @Nullable Object> map) {
 		if (map == null) {
 			return null;
 		}

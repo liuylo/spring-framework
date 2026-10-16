@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -59,7 +59,6 @@ class WebFluxViewResolutionIntegrationTests {
 	private static final MediaType TEXT_HTML_ISO_8859_1 = MediaType.parseMediaType("text/html;charset=ISO-8859-1");
 
 
-
 	@Nested
 	class FreeMarkerTests {
 
@@ -115,6 +114,7 @@ class WebFluxViewResolutionIntegrationTests {
 			}
 		}
 
+
 		@Configuration(proxyBeanMethods = false)
 		static class FreeMarkerWebFluxConfig extends AbstractWebFluxConfig {
 
@@ -130,6 +130,7 @@ class WebFluxViewResolutionIntegrationTests {
 				return configurer;
 			}
 		}
+
 
 		@Configuration(proxyBeanMethods = false)
 		static class ExplicitDefaultEncodingConfig extends AbstractWebFluxConfig {
@@ -147,6 +148,7 @@ class WebFluxViewResolutionIntegrationTests {
 				return configurer;
 			}
 		}
+
 
 		@Configuration(proxyBeanMethods = false)
 		static class ExplicitDefaultEncodingAndContentTypeConfig extends AbstractWebFluxConfig {
@@ -195,6 +197,7 @@ class WebFluxViewResolutionIntegrationTests {
 			return new SampleController("index_UTF-8");
 		}
 	}
+
 
 	@Controller
 	static class SampleController {

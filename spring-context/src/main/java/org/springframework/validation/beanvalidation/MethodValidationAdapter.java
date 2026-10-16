@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,8 +40,6 @@ import jakarta.validation.executable.ExecutableValidator;
 import jakarta.validation.metadata.ConstraintDescriptor;
 import org.jspecify.annotations.Nullable;
 
-import org.springframework.aop.framework.AopProxyUtils;
-import org.springframework.aop.support.AopUtils;
 import org.springframework.context.MessageSourceResolvable;
 import org.springframework.context.support.DefaultMessageSourceResolvable;
 import org.springframework.core.BridgeMethodResolver;
@@ -50,7 +48,6 @@ import org.springframework.core.DefaultParameterNameDiscoverer;
 import org.springframework.core.GenericTypeResolver;
 import org.springframework.core.MethodParameter;
 import org.springframework.core.ParameterNameDiscoverer;
-import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.util.Assert;
 import org.springframework.util.function.SingletonSupplier;
 import org.springframework.validation.BeanPropertyBindingResult;
@@ -59,6 +56,7 @@ import org.springframework.validation.DefaultMessageCodesResolver;
 import org.springframework.validation.Errors;
 import org.springframework.validation.MessageCodesResolver;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.validation.annotation.ValidationAnnotationUtils;
 import org.springframework.validation.method.MethodValidationResult;
 import org.springframework.validation.method.MethodValidator;
 import org.springframework.validation.method.ParameterErrors;
@@ -87,7 +85,7 @@ public class MethodValidationAdapter implements MethodValidator {
 
 	private MessageCodesResolver messageCodesResolver = new DefaultMessageCodesResolver();
 
-	private ParameterNameDiscoverer parameterNameDiscoverer = new DefaultParameterNameDiscoverer();
+	private ParameterNameDiscoverer parameterNameDiscoverer = DefaultParameterNameDiscoverer.getSharedInstance();
 
 	private ObjectNameResolver objectNameResolver = defaultObjectNameResolver;
 
@@ -213,30 +211,20 @@ public class MethodValidationAdapter implements MethodValidator {
 	 * annotation on the method, or on the containing target class of the method,
 	 * or for an AOP proxy without a target (with all behavior in advisors), also
 	 * check on proxied interfaces.
+	 * @deprecated in favor of
+	 * {@link org.springframework.validation.annotation.ValidationAnnotationUtils#determineValidationGroups(Object, Method)}
 	 */
+	@SuppressWarnings("removal")
+	@Deprecated(since = "7.0.4", forRemoval = true)
 	@Override
 	public Class<?>[] determineValidationGroups(Object target, Method method) {
-		Validated validatedAnn = AnnotationUtils.findAnnotation(method, Validated.class);
-		if (validatedAnn == null) {
-			if (AopUtils.isAopProxy(target)) {
-				for (Class<?> type : AopProxyUtils.proxiedUserInterfaces(target)) {
-					validatedAnn = AnnotationUtils.findAnnotation(type, Validated.class);
-					if (validatedAnn != null) {
-						break;
-					}
-				}
-			}
-			else {
-				validatedAnn = AnnotationUtils.findAnnotation(target.getClass(), Validated.class);
-			}
-		}
-		return (validatedAnn != null ? validatedAnn.value() : new Class<?>[0]);
+		return ValidationAnnotationUtils.determineValidationGroups(target, method);
 	}
 
 	@Override
 	public final MethodValidationResult validateArguments(
 			Object target, Method method, MethodParameter @Nullable [] parameters,
-			Object[] arguments, Class<?>[] groups) {
+			@Nullable Object[] arguments, Class<?>[] groups) {
 
 		Set<ConstraintViolation<Object>> violations =
 				invokeValidatorForArguments(target, method, arguments, groups);
@@ -254,7 +242,7 @@ public class MethodValidationAdapter implements MethodValidator {
 	 * Invoke the validator, and return the resulting violations.
 	 */
 	public final Set<ConstraintViolation<Object>> invokeValidatorForArguments(
-			Object target, Method method, Object[] arguments, Class<?>[] groups) {
+			Object target, Method method, @Nullable Object[] arguments, Class<?>[] groups) {
 
 		ExecutableValidator execVal = this.validator.get().forExecutables();
 		try {
@@ -298,7 +286,7 @@ public class MethodValidationAdapter implements MethodValidator {
 	private MethodValidationResult adaptViolations(
 			Object target, Method method, Set<ConstraintViolation<Object>> violations,
 			Function<Integer, MethodParameter> parameterFunction,
-			Function<Integer, Object> argumentFunction) {
+			Function<Integer, @Nullable Object> argumentFunction) {
 
 		Map<Path.Node, ParamValidationResultBuilder> paramViolations = new LinkedHashMap<>();
 		Map<Path.Node, ParamErrorsBuilder> nestedViolations = new LinkedHashMap<>();
@@ -545,7 +533,7 @@ public class MethodValidationAdapter implements MethodValidator {
 
 
 	@SuppressWarnings("serial")
-	private static class ViolationMessageSourceResolvable extends DefaultMessageSourceResolvable {
+	private class ViolationMessageSourceResolvable extends DefaultMessageSourceResolvable {
 
 		private final transient ConstraintViolation<Object> violation;
 
@@ -558,6 +546,11 @@ public class MethodValidationAdapter implements MethodValidator {
 
 		public ConstraintViolation<Object> getViolation() {
 			return this.violation;
+		}
+
+		@Override
+		public boolean shouldRenderDefaultMessage() {
+			return validatorAdapter.get().requiresMessageFormat(this.violation);
 		}
 	}
 

@@ -60,9 +60,8 @@ Java::
 			if (errors.hasErrors()) {
 				// ...
 			}
-				status.setComplete();
-				// ...
-			}
+			status.setComplete();
+			// ...
 		}
 	}
 ----
@@ -92,5 +91,3 @@ Kotlin::
 <1> Using the `@SessionAttributes` annotation.
 <2> Using a `SessionStatus` variable.
 ======
-
-

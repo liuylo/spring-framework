@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,6 +55,7 @@ import static org.springframework.http.HttpMethod.GET;
  * Tests for the client HTTP observations with {@link RestTemplate}.
  * @author Brian Clozel
  */
+@SuppressWarnings("removal")
 class RestTemplateObservationTests {
 
 
@@ -149,7 +150,7 @@ class RestTemplateObservationTests {
 	}
 
 	@Test
-	void executeWithIoExceptionAddsUnknownOutcome() throws Exception {
+	void executeWithIOExceptionAddsUnknownOutcome() throws Exception {
 		String url = "https://example.org/resource";
 		mockSentRequest(GET, url);
 		given(request.execute()).willThrow(new IOException("Socket failure"));

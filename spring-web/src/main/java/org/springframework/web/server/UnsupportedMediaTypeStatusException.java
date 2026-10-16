@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -160,6 +160,9 @@ public class UnsupportedMediaTypeStatusException extends ResponseStatusException
 		headers.setAccept(this.supportedMediaTypes);
 		if (this.method == HttpMethod.PATCH) {
 			headers.setAcceptPatch(this.supportedMediaTypes);
+		}
+		else if (this.method == HttpMethod.QUERY) {
+			headers.setAcceptQuery(this.supportedMediaTypes);
 		}
 		return headers;
 	}

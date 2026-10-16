@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -66,6 +66,7 @@ import org.jspecify.annotations.Nullable;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.lang.Contract;
 import org.springframework.util.Assert;
 import org.springframework.util.LinkedCaseInsensitiveMap;
 import org.springframework.util.LinkedMultiValueMap;
@@ -81,7 +82,7 @@ import org.springframework.web.util.UrlPathHelper;
  * is {@link Locale#ENGLISH}. This value can be changed via {@link #addPreferredLocale}
  * or {@link #setPreferredLocales}.
  *
- * <p>As of Spring 6.0, this set of mocks is designed on a Servlet 6.0 baseline.
+ * <p>As of Spring 7.0, this set of mocks is designed on a Servlet 6.1 baseline.
  *
  * @author Juergen Hoeller
  * @author Rod Johnson
@@ -222,7 +223,7 @@ public class MockHttpServletRequest implements HttpServletRequest {
 
 	private @Nullable String authType;
 
-	private @Nullable Cookie[] cookies;
+	private Cookie @Nullable [] cookies;
 
 	private final Map<String, HeaderValueHolder> headers = new LinkedCaseInsensitiveMap<>();
 
@@ -250,7 +251,7 @@ public class MockHttpServletRequest implements HttpServletRequest {
 
 	private @Nullable HttpSession session;
 
-	private boolean requestedSessionIdValid = true;
+	private @Nullable Boolean requestedSessionIdValid;
 
 	private boolean requestedSessionIdFromCookie = true;
 
@@ -392,7 +393,8 @@ public class MockHttpServletRequest implements HttpServletRequest {
 	private void updateContentTypeHeader() {
 		if (StringUtils.hasLength(this.contentType)) {
 			String value = this.contentType;
-			if (StringUtils.hasLength(this.characterEncoding) && !this.contentType.toLowerCase().contains(CHARSET_PREFIX)) {
+			if (StringUtils.hasLength(this.characterEncoding) &&
+					!this.contentType.toLowerCase(Locale.ROOT).contains(CHARSET_PREFIX)) {
 				value += ';' + CHARSET_PREFIX + this.characterEncoding;
 			}
 			doAddHeaderValue(HttpHeaders.CONTENT_TYPE, value, true);
@@ -468,7 +470,7 @@ public class MockHttpServletRequest implements HttpServletRequest {
 			}
 			catch (IllegalArgumentException ex) {
 				// Try to get charset value anyway
-				contentType = contentType.toLowerCase();
+				contentType = contentType.toLowerCase(Locale.ROOT);
 				int charsetIndex = contentType.indexOf(CHARSET_PREFIX);
 				if (charsetIndex != -1) {
 					this.characterEncoding = contentType.substring(charsetIndex + CHARSET_PREFIX.length());
@@ -616,7 +618,7 @@ public class MockHttpServletRequest implements HttpServletRequest {
 	}
 
 	@Override
-	public @Nullable String[] getParameterValues(String name) {
+	public String @Nullable [] getParameterValues(String name) {
 		Assert.notNull(name, "Parameter name must not be null");
 		return this.parameters.get(name);
 	}
@@ -998,7 +1000,7 @@ public class MockHttpServletRequest implements HttpServletRequest {
 		return this.authType;
 	}
 
-	public void setCookies(@Nullable Cookie... cookies) {
+	public void setCookies(Cookie @Nullable ... cookies) {
 		this.cookies = (ObjectUtils.isEmpty(cookies) ? null : cookies);
 		if (this.cookies == null) {
 			removeHeader(HttpHeaders.COOKIE);
@@ -1015,7 +1017,7 @@ public class MockHttpServletRequest implements HttpServletRequest {
 	}
 
 	@Override
-	public @Nullable Cookie[] getCookies() {
+	public Cookie @Nullable [] getCookies() {
 		return this.cookies;
 	}
 
@@ -1035,8 +1037,7 @@ public class MockHttpServletRequest implements HttpServletRequest {
 	 * @see #getDateHeader
 	 */
 	public void addHeader(String name, Object value) {
-		if (HttpHeaders.CONTENT_TYPE.equalsIgnoreCase(name) &&
-				!this.headers.containsKey(HttpHeaders.CONTENT_TYPE)) {
+		if (HttpHeaders.CONTENT_TYPE.equalsIgnoreCase(name)) {
 			setContentType(value.toString());
 		}
 		else if (HttpHeaders.ACCEPT_LANGUAGE.equalsIgnoreCase(name) &&
@@ -1129,8 +1130,7 @@ public class MockHttpServletRequest implements HttpServletRequest {
 			try {
 				return simpleDateFormat.parse(value).getTime();
 			}
-			catch (ParseException ex) {
-				// ignore
+			catch (ParseException ignored) {
 			}
 		}
 		throw new IllegalArgumentException("Cannot parse date value '" + value + "' for '" + name + "' header");
@@ -1312,6 +1312,7 @@ public class MockHttpServletRequest implements HttpServletRequest {
 	}
 
 	@Override
+	@Contract("true -> !null")
 	public @Nullable HttpSession getSession(boolean create) {
 		checkActive();
 		// Reset session if invalidated.
@@ -1326,7 +1327,7 @@ public class MockHttpServletRequest implements HttpServletRequest {
 	}
 
 	@Override
-	public @Nullable HttpSession getSession() {
+	public HttpSession getSession() {
 		return getSession(true);
 	}
 
@@ -1351,7 +1352,15 @@ public class MockHttpServletRequest implements HttpServletRequest {
 
 	@Override
 	public boolean isRequestedSessionIdValid() {
-		return this.requestedSessionIdValid;
+		if (this.requestedSessionIdValid != null) {
+			return this.requestedSessionIdValid;
+		}
+		String requestedId = getRequestedSessionId();
+		if (requestedId == null) {
+			return false;
+		}
+		HttpSession currentSession = getSession(false);
+		return (currentSession != null && requestedId.equals(currentSession.getId()));
 	}
 
 	public void setRequestedSessionIdFromCookie(boolean requestedSessionIdFromCookie) {

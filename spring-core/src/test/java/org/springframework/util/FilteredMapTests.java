@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
 import static java.util.Map.entry;
@@ -27,6 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * @author Arjen Poutsma
+ * @author Yanming Zhou
  */
 class FilteredMapTests {
 
@@ -99,5 +101,16 @@ class FilteredMapTests {
 
 		Set<String> keySet = filtered.keySet();
 		assertThat(keySet).containsExactlyInAnyOrder("foo", "quux");
+	}
+
+	@Test
+	void nullable() {
+		Map<String, @Nullable String> map = new HashMap<>();
+		map.put("foo", null);
+		map.put("bar", "bar");
+		map.put("baz", "baz");
+		FilteredMap<String, @Nullable String> filtered = new FilteredMap<>(map, s -> !s.equals("baz"));
+
+		assertThat(filtered).containsEntry("foo", null).containsEntry("bar", "bar").doesNotContainKeys("baz");
 	}
 }

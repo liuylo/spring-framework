@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,14 +35,15 @@ import org.hamcrest.Matcher;
 import org.jspecify.annotations.Nullable;
 import org.w3c.dom.Node;
 
+import org.springframework.core.ResolvableType;
 import org.springframework.core.io.Resource;
+import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpRequest;
 import org.springframework.http.converter.FormHttpMessageConverter;
 import org.springframework.mock.http.MockHttpInputMessage;
 import org.springframework.mock.http.client.MockClientHttpRequest;
-import org.springframework.test.json.JsonAssert;
 import org.springframework.test.json.JsonComparator;
 import org.springframework.test.json.JsonCompareMode;
 import org.springframework.test.json.JsonComparison;
@@ -174,12 +175,14 @@ public class ContentRequestMatchers {
 		return formData(multiValueMap, false);
 	}
 
+	@SuppressWarnings("unchecked")
 	private RequestMatcher formData(MultiValueMap<String, String> expectedMap, boolean containsExactly) {
 		return request -> {
 			MockClientHttpRequest mockRequest = (MockClientHttpRequest) request;
 			MockHttpInputMessage message = new MockHttpInputMessage(mockRequest.getBodyAsBytes());
 			message.getHeaders().putAll(mockRequest.getHeaders());
-			MultiValueMap<String, String> actualMap = new FormHttpMessageConverter().read(null, message);
+			MultiValueMap<String, String> actualMap = (MultiValueMap<String, String>) new FormHttpMessageConverter()
+					.read(ResolvableType.forClassWithGenerics(MultiValueMap.class, String.class, String.class), message, null);
 			if (containsExactly) {
 				assertEquals("Form data", expectedMap, actualMap);
 			}
@@ -205,6 +208,7 @@ public class ContentRequestMatchers {
 	 * <li>{@code String} - form field
 	 * <li>{@link Resource} - content from a file
 	 * <li>{@code byte[]} - other raw content
+	 * <li>{@link HttpEntity} - entity with a Resource or byte[], and a Content-Type header
 	 * </ul>
 	 * <p><strong>Note:</strong> This method uses the fork of Commons FileUpload library
 	 * packaged with Apache Tomcat in the {@code org.apache.tomcat.util.http.fileupload}
@@ -239,7 +243,7 @@ public class ContentRequestMatchers {
 		return multipartData(map, DEFAULT_MULTIPART_ENCODING, false);
 	}
 
-	@SuppressWarnings("ConstantConditions")
+	@SuppressWarnings({"ConstantConditions", "unchecked"})
 	private RequestMatcher multipartData(
 			MultiValueMap<String, ?> expectedMap, Charset defaultCharset, boolean containsExactly) {
 
@@ -256,25 +260,43 @@ public class ContentRequestMatchers {
 						values.size() == actualMap.get(name).size() :
 						values.size() <= actualMap.get(name).size());
 				for (int i = 0; i < values.size(); i++) {
+					MediaType expectedContentType = null;
 					Object expected = values.get(i);
 					Object actual = actualMap.get(name).get(i);
+
+					if (expected instanceof HttpEntity<?> entity) {
+						expectedContentType = entity.getHeaders().getContentType();
+						expected = entity.getBody();
+					}
 					if (expected instanceof Resource resource) {
 						expected = StreamUtils.copyToByteArray(resource.getInputStream());
 					}
+
 					if (expected instanceof byte[]) {
-						assertTrue("Multipart is not a file", actual instanceof byte[]);
-						assertEquals("Multipart content", expected, actual);
+						assertEquals("Multipart content", expected, asHttpEntity(actual).getBody());
 					}
 					else if (expected instanceof String) {
 						assertTrue("Multipart is not a String", actual instanceof String);
 						assertEquals("Multipart content", expected, actual);
 					}
 					else {
-						throw new IllegalArgumentException("Unexpected multipart value: " + expected.getClass());
+						throw new IllegalArgumentException("Unexpected multipart value: " +
+								(expected != null ? expected.getClass() : null));
+					}
+
+					if (expectedContentType != null) {
+						assertEquals("Multipart content-type",
+								expectedContentType, asHttpEntity(actual).getHeaders().getContentType());
 					}
 				}
 			}
 		};
+	}
+
+	@SuppressWarnings("unchecked")
+	private static HttpEntity<byte[]> asHttpEntity(Object actual) {
+		assertTrue("Multipart is not an HttpEntity", actual instanceof HttpEntity<?>);
+		return (HttpEntity<byte[]>) actual;
 	}
 
 	/**
@@ -324,8 +346,9 @@ public class ContentRequestMatchers {
 	 * are "similar" - i.e. they contain the same attribute-value pairs
 	 * regardless of formatting with a lenient checking (extensible, and non-strict array
 	 * ordering).
-	 * <p>Use of this matcher requires the <a
-	 * href="https://jsonassert.skyscreamer.org/">JSONassert</a> library.
+	 * <p>Use of this matcher requires either the
+	 * <a href="https://github.com/lukas-krecan/JsonUnit">JsonUnit</a> or the
+	 * <a href="https://jsonassert.skyscreamer.org/">JSONassert</a> library.
 	 * @param expectedJsonContent the expected JSON content
 	 * @since 5.0.5
 	 */
@@ -342,8 +365,9 @@ public class ContentRequestMatchers {
 	 * <li>{@code true}: strict checking. Not extensible, and strict array ordering.</li>
 	 * <li>{@code false}: lenient checking. Extensible, and non-strict array ordering.</li>
 	 * </ul>
-	 * <p>Use of this matcher requires the <a
-	 * href="https://jsonassert.skyscreamer.org/">JSONassert</a> library.
+	 * <p>Use of this matcher requires either the
+	 * <a href="https://github.com/lukas-krecan/JsonUnit">JsonUnit</a> or the
+	 * <a href="https://jsonassert.skyscreamer.org/">JSONassert</a> library.
 	 * @param expectedJsonContent the expected JSON content
 	 * @param strict enables strict checking
 	 * @since 5.0.5
@@ -359,22 +383,23 @@ public class ContentRequestMatchers {
 	 * Parse the request body and the given string as JSON and assert the two
 	 * using the given {@linkplain JsonCompareMode mode}. If the comparison failed,
 	 * throws an {@link AssertionError} with the message of the {@link JsonComparison}.
-	 * <p>Use of this matcher requires the <a
-	 * href="https://jsonassert.skyscreamer.org/">JSONassert</a> library.
+	 * <p>Use of this matcher requires either the
+	 * <a href="https://github.com/lukas-krecan/JsonUnit">JsonUnit</a> or the
+	 * <a href="https://jsonassert.skyscreamer.org/">JSONassert</a> library.
 	 * @param expectedJsonContent the expected JSON content
 	 * @param compareMode the compare mode
 	 * @since 6.2
 	 */
 	public RequestMatcher json(String expectedJsonContent, JsonCompareMode compareMode) {
-		return json(expectedJsonContent, JsonAssert.comparator(compareMode));
+		return json(expectedJsonContent, JsonComparator.of(compareMode));
 	}
 
 	/**
 	 * Parse the request body and the given string as JSON and assert the two
 	 * using the given {@link JsonComparator}. If the comparison failed, throws an
 	 * {@link AssertionError} with the message of the {@link JsonComparison}.
-	 * <p>Use this matcher if you require a custom JSONAssert configuration or
-	 * if you desire to use another assertion library.
+	 * <p>Use this matcher if you require a custom configuration or if you
+	 * desire to use another assertion library.
 	 * @param expectedJsonContent the expected JSON content
 	 * @param comparator the comparator to use
 	 * @since 6.2
@@ -444,13 +469,19 @@ public class ContentRequestMatchers {
 				MultiValueMap<String, Object> result = new LinkedMultiValueMap<>();
 				for (FileItem fileItem : fileItems) {
 					result.add(fileItem.getFieldName(),
-							(fileItem.isFormField() ? fileItem.getString() : fileItem.get()));
+							(fileItem.isFormField() ? fileItem.getString() : toHttpEntity(fileItem)));
 				}
 				return result;
 			}
 			catch (Exception ex) {
 				throw new IllegalStateException("Failed to parse multipart request", ex);
 			}
+		}
+
+		private static HttpEntity<?> toHttpEntity(FileItem fileItem) {
+			HttpHeaders headers = new HttpHeaders();
+			headers.set(HttpHeaders.CONTENT_TYPE, fileItem.getContentType());
+			return new HttpEntity<>(fileItem.get(), headers);
 		}
 	}
 

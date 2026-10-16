@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.util.BufferRecycler;
 import com.fasterxml.jackson.core.util.ByteArrayBuilder;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -50,6 +51,7 @@ import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferFactory;
 import org.springframework.core.log.LogFormatUtils;
 import org.springframework.http.MediaType;
+import org.springframework.http.codec.AbstractJacksonEncoder;
 import org.springframework.http.codec.HttpMessageEncoder;
 import org.springframework.http.converter.json.MappingJacksonValue;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -66,7 +68,10 @@ import org.springframework.util.MimeType;
  * @author Sebastien Deleuze
  * @author Arjen Poutsma
  * @since 5.0
+ * @deprecated since 7.0 in favor of {@link AbstractJacksonEncoder}
  */
+@Deprecated(since = "7.0", forRemoval = true)
+@SuppressWarnings("removal")
 public abstract class AbstractJackson2Encoder extends Jackson2CodecSupport implements HttpMessageEncoder<Object> {
 
 	private static final byte[] NEWLINE_SEPARATOR = {'\n'};
@@ -167,7 +172,8 @@ public abstract class AbstractJackson2Encoder extends Jackson2CodecSupport imple
 				}
 
 				ObjectWriter writer = createObjectWriter(mapper, elementType, mimeType, null, hintsToUse);
-				ByteArrayBuilder byteBuilder = new ByteArrayBuilder(writer.getFactory()._getBufferRecycler());
+				BufferRecycler recycler = writer.getFactory()._getBufferRecycler();
+				ByteArrayBuilder byteBuilder = new ByteArrayBuilder(recycler);
 				JsonEncoding encoding = getJsonEncoding(mimeType);
 				JsonGenerator generator = mapper.getFactory().createGenerator(byteBuilder, encoding);
 				SequenceWriter sequenceWriter = writer.writeValues(generator);
@@ -212,6 +218,11 @@ public abstract class AbstractJackson2Encoder extends Jackson2CodecSupport imple
 							catch (IOException ex) {
 								logger.error("Could not close Encoder resources", ex);
 							}
+							finally {
+								// Release strictly after the generator and builder are done: the
+								// recycler returns to a concurrent pool and may be reused at once.
+								recycler.releaseToPool();
+							}
 						});
 			}
 			catch (IOException ex) {
@@ -243,7 +254,8 @@ public abstract class AbstractJackson2Encoder extends Jackson2CodecSupport imple
 			writer = writer.with(filters);
 		}
 
-		ByteArrayBuilder byteBuilder = new ByteArrayBuilder(writer.getFactory()._getBufferRecycler());
+		BufferRecycler recycler = writer.getFactory()._getBufferRecycler();
+		ByteArrayBuilder byteBuilder = new ByteArrayBuilder(recycler);
 		try {
 			JsonEncoding encoding = getJsonEncoding(mimeType);
 
@@ -272,6 +284,7 @@ public abstract class AbstractJackson2Encoder extends Jackson2CodecSupport imple
 		}
 		finally {
 			byteBuilder.release();
+			recycler.releaseToPool();
 		}
 	}
 

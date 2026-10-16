@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -61,7 +61,7 @@ import org.springframework.util.ReflectionUtils;
  */
 class BeanValidationBeanRegistrationAotProcessor implements BeanRegistrationAotProcessor {
 
-	private static final boolean beanValidationPresent = ClassUtils.isPresent(
+	private static final boolean BEAN_VALIDATION_PRESENT = ClassUtils.isPresent(
 			"jakarta.validation.Validation", BeanValidationBeanRegistrationAotProcessor.class.getClassLoader());
 
 	private static final Log logger = LogFactory.getLog(BeanValidationBeanRegistrationAotProcessor.class);
@@ -69,7 +69,7 @@ class BeanValidationBeanRegistrationAotProcessor implements BeanRegistrationAotP
 
 	@Override
 	public @Nullable BeanRegistrationAotContribution processAheadOfTime(RegisteredBean registeredBean) {
-		if (beanValidationPresent) {
+		if (BEAN_VALIDATION_PRESENT) {
 			return BeanValidationDelegate.processAheadOfTime(registeredBean);
 		}
 		return null;
@@ -233,7 +233,7 @@ class BeanValidationBeanRegistrationAotProcessor implements BeanRegistrationAotP
 		public void applyTo(GenerationContext generationContext, BeanRegistrationCode beanRegistrationCode) {
 			ReflectionHints hints = generationContext.getRuntimeHints().reflection();
 			for (Class<?> validatedClass : this.validatedClasses) {
-				hints.registerType(validatedClass, MemberCategory.INVOKE_DECLARED_FIELDS);
+				hints.registerType(validatedClass, MemberCategory.ACCESS_DECLARED_FIELDS);
 			}
 			for (Class<? extends ConstraintValidator<?, ?>> constraintValidatorClass : this.constraintValidatorClasses) {
 				hints.registerType(constraintValidatorClass, MemberCategory.INVOKE_DECLARED_CONSTRUCTORS);

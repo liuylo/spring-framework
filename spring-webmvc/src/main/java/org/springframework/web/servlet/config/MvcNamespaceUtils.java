@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,7 +35,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.servlet.DispatcherServlet;
 import org.springframework.web.servlet.handler.AbstractHandlerMapping;
 import org.springframework.web.servlet.handler.BeanNameUrlHandlerMapping;
-import org.springframework.web.servlet.handler.HandlerMappingIntrospector;
+import org.springframework.web.servlet.handler.DefaultPreFlightRequestHandler;
 import org.springframework.web.servlet.i18n.AcceptHeaderLocaleResolver;
 import org.springframework.web.servlet.mvc.HttpRequestHandlerAdapter;
 import org.springframework.web.servlet.mvc.SimpleControllerHandlerAdapter;
@@ -72,16 +72,15 @@ public abstract class MvcNamespaceUtils {
 
 	private static final String CORS_CONFIGURATION_BEAN_NAME = "mvcCorsConfigurations";
 
-	private static final String HANDLER_MAPPING_INTROSPECTOR_BEAN_NAME = "mvcHandlerMappingIntrospector";
+	private static final String PRE_FLIGHT_REQUEST_HANDLER = "mvcPreFlightRequestHandler";
 
 
 	public static void registerDefaultComponents(ParserContext context, @Nullable Object source) {
 		registerBeanNameUrlHandlerMapping(context, source);
 		registerHttpRequestHandlerAdapter(context, source);
 		registerSimpleControllerHandlerAdapter(context, source);
-		registerHandlerMappingIntrospector(context, source);
+		registerPreFlightRequestHandler(context, source);
 		registerLocaleResolver(context, source);
-		registerThemeResolver(context, source);
 		registerViewNameTranslator(context, source);
 		registerFlashMapManager(context, source);
 	}
@@ -277,17 +276,17 @@ public abstract class MvcNamespaceUtils {
 	}
 
 	/**
-	 * Registers an {@link HandlerMappingIntrospector} under a well-known name
+	 * Registers an {@link DefaultPreFlightRequestHandler} under a well-known name
 	 * unless already registered.
 	 */
-	private static void registerHandlerMappingIntrospector(ParserContext context, @Nullable Object source) {
-		if (!context.getRegistry().containsBeanDefinition(HANDLER_MAPPING_INTROSPECTOR_BEAN_NAME)) {
-			RootBeanDefinition beanDef = new RootBeanDefinition(HandlerMappingIntrospector.class);
+	private static void registerPreFlightRequestHandler(ParserContext context, @Nullable Object source) {
+		if (!context.getRegistry().containsBeanDefinition(PRE_FLIGHT_REQUEST_HANDLER)) {
+			RootBeanDefinition beanDef = new RootBeanDefinition(DefaultPreFlightRequestHandler.class);
 			beanDef.setSource(source);
 			beanDef.setRole(BeanDefinition.ROLE_INFRASTRUCTURE);
 			beanDef.setLazyInit(true);
-			context.getRegistry().registerBeanDefinition(HANDLER_MAPPING_INTROSPECTOR_BEAN_NAME, beanDef);
-			context.registerComponent(new BeanComponentDefinition(beanDef, HANDLER_MAPPING_INTROSPECTOR_BEAN_NAME));
+			context.getRegistry().registerBeanDefinition(PRE_FLIGHT_REQUEST_HANDLER, beanDef);
+			context.registerComponent(new BeanComponentDefinition(beanDef, PRE_FLIGHT_REQUEST_HANDLER));
 		}
 	}
 
@@ -302,21 +301,6 @@ public abstract class MvcNamespaceUtils {
 			beanDef.setRole(BeanDefinition.ROLE_INFRASTRUCTURE);
 			context.getRegistry().registerBeanDefinition(DispatcherServlet.LOCALE_RESOLVER_BEAN_NAME, beanDef);
 			context.registerComponent(new BeanComponentDefinition(beanDef, DispatcherServlet.LOCALE_RESOLVER_BEAN_NAME));
-		}
-	}
-
-	/**
-	 * Registers an {@link org.springframework.web.servlet.theme.FixedThemeResolver}
-	 * under a well-known name unless already registered.
-	 */
-	@SuppressWarnings("deprecation")
-	private static void registerThemeResolver(ParserContext context, @Nullable Object source) {
-		if (!containsBeanInHierarchy(context, DispatcherServlet.THEME_RESOLVER_BEAN_NAME)) {
-			RootBeanDefinition beanDef = new RootBeanDefinition(org.springframework.web.servlet.theme.FixedThemeResolver.class);
-			beanDef.setSource(source);
-			beanDef.setRole(BeanDefinition.ROLE_INFRASTRUCTURE);
-			context.getRegistry().registerBeanDefinition(DispatcherServlet.THEME_RESOLVER_BEAN_NAME, beanDef);
-			context.registerComponent(new BeanComponentDefinition(beanDef, DispatcherServlet.THEME_RESOLVER_BEAN_NAME));
 		}
 	}
 

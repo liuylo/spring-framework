@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ public class WebSocketConnectionManager extends ConnectionManagerSupport {
 	 * Constructor with the client to use and a handler to handle messages with.
 	 */
 	public WebSocketConnectionManager(WebSocketClient client,
-			WebSocketHandler webSocketHandler, String uriTemplate, Object... uriVariables) {
+			WebSocketHandler webSocketHandler, String uriTemplate, @Nullable Object... uriVariables) {
 
 		super(uriTemplate, uriVariables);
 		this.client = client;

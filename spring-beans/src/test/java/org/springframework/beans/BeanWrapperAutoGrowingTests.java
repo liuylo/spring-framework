@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 package org.springframework.beans;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -104,6 +105,27 @@ class BeanWrapperAutoGrowingTests {
 	}
 
 	@Test
+	void getPropertyValueAutoGrow3dArrayList() {
+		assertThat(wrapper.getPropertyValue("threeDimensionalArrayList[1][2][3][4]")).isNotNull();
+		assertThat(bean.getThreeDimensionalArrayList()).hasSize(2);
+		assertThat(bean.getThreeDimensionalArrayList().get(1)).hasNumberOfRows(3);
+		assertThat(bean.getThreeDimensionalArrayList().get(1)[2]).hasNumberOfRows(4);
+		assertThat(bean.getThreeDimensionalArrayList().get(1)[2][3]).hasSize(5);
+		assertThat(bean.getThreeDimensionalArrayList().get(1)[2][3][4]).isInstanceOf(Bean.class);
+	}
+
+	@Test
+	void getPropertyValueAutoGrow3dArrayListForDefault3dArray() {
+		assertThat(wrapper.getPropertyValue("threeDimensionalArrayList[0]")).isNotNull();
+		assertThat(bean.getThreeDimensionalArrayList()).hasSize(1);
+
+		// Default 3-dimensional array should be [[[]]]
+		assertThat(bean.getThreeDimensionalArrayList().get(0)).hasNumberOfRows(1);
+		assertThat(bean.getThreeDimensionalArrayList().get(0)[0]).hasNumberOfRows(1);
+		assertThat(bean.getThreeDimensionalArrayList().get(0)[0][0]).isEmpty();
+	}
+
+	@Test
 	void setPropertyValueAutoGrow2dArray() {
 		Bean newBean = new Bean();
 		newBean.setProp("enigma");
@@ -121,6 +143,16 @@ class BeanWrapperAutoGrowingTests {
 		assertThat(bean.getThreeDimensionalArray()[2][3][4])
 			.isInstanceOf(Bean.class)
 			.extracting(Bean::getProp).isEqualTo("enigma");
+	}
+
+	@Test
+	void setPropertyValueAutoGrow3dArrayList() {
+		Bean newBean = new Bean();
+		newBean.setProp("enigma");
+		wrapper.setPropertyValue("threeDimensionalArrayList[0][1][2][3]", newBean);
+		assertThat(bean.getThreeDimensionalArrayList().get(0)[1][2][3])
+				.isInstanceOf(Bean.class)
+				.extracting(Bean::getProp).isEqualTo("enigma");
 	}
 
 	@Test
@@ -152,7 +184,34 @@ class BeanWrapperAutoGrowingTests {
 		wrapper.setAutoGrowCollectionLimit(2);
 		assertThatExceptionOfType(InvalidPropertyException.class)
 				.isThrownBy(() -> wrapper.getPropertyValue("list[4]"))
-				.withRootCauseInstanceOf(IndexOutOfBoundsException.class);
+				.withMessageContainingAll(
+						"Invalid property 'list[4]'",
+						"Cannot get element with index 4 from List of size 0");
+	}
+
+	@Test
+	void getPropertyValueSelfPopulatingListWorksWithinLimit() {
+		bean.setList(new SelfPopulatingList());
+		assertThat(wrapper.getPropertyValue("list[2]")).isInstanceOf(Bean.class);
+		assertThat(bean.getList())
+				.hasSize(3)
+				.allSatisfy(entry -> assertThat(entry).isInstanceOf(Bean.class));
+	}
+
+	@Test
+	void getPropertyValueSelfPopulatingListFailsAgainstLimit() {
+		bean.setList(new SelfPopulatingList());
+		wrapper.setAutoGrowCollectionLimit(2);
+		assertThatExceptionOfType(InvalidPropertyException.class)
+				.isThrownBy(() -> wrapper.getPropertyValue("list[4]"));
+	}
+
+	@Test
+	void setPropertyValueSelfPopulatingListFailsAgainstLimitForNestedPath() {
+		bean.setList(new SelfPopulatingList());
+		wrapper.setAutoGrowCollectionLimit(2);
+		assertThatExceptionOfType(InvalidPropertyException.class)
+				.isThrownBy(() -> wrapper.setPropertyValue("list[4].prop", "test"));
 	}
 
 	@Test
@@ -215,6 +274,8 @@ class BeanWrapperAutoGrowingTests {
 
 		private Bean[][][] threeDimensionalArray;
 
+		private List<Bean[][][]> threeDimensionalArrayList;
+
 		private List<Bean> list;
 
 		private List<List<Bean>> nestedList;
@@ -267,6 +328,14 @@ class BeanWrapperAutoGrowingTests {
 
 		public void setThreeDimensionalArray(Bean[][][] threeDimensionalArray) {
 			this.threeDimensionalArray = threeDimensionalArray;
+		}
+
+		public List<Bean[][][]> getThreeDimensionalArrayList() {
+			return threeDimensionalArrayList;
+		}
+
+		public void setThreeDimensionalArrayList(List<Bean[][][]> threeDimensionalArrayList) {
+			this.threeDimensionalArrayList = threeDimensionalArrayList;
 		}
 
 		public List<Bean> getList() {
@@ -338,6 +407,26 @@ class BeanWrapperAutoGrowingTests {
 	public static class NestedNoDefaultConstructor {
 
 		private NestedNoDefaultConstructor() {
+		}
+	}
+
+
+	/**
+	 * A {@link List} implementation that creates elements on demand in {@link #get(int)}
+	 * instead of throwing {@link IndexOutOfBoundsException} for out-of-range indexes.
+	 *
+	 * <p>Used to verify that {@link BeanWrapperImpl} does not delegate to
+	 * {@link List#get(int)} for indexes beyond the configured auto-grow limit.
+	 */
+	@SuppressWarnings("serial")
+	private static class SelfPopulatingList extends ArrayList<Bean> {
+
+		@Override
+		public Bean get(int index) {
+			while (size() <= index) {
+				add(new Bean());
+			}
+			return super.get(index);
 		}
 	}
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,9 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoField;
 import java.util.AbstractSet;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -57,11 +59,11 @@ import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
 
 /**
- * A data structure representing HTTP request or response headers, mapping String header names
- * to a list of String values, also offering accessors for common application-level data types.
+ * A data structure representing HTTP request or response headers, mapping String
+ * header names to a list of String values and also offering accessors for common
+ * application-level data types.
  *
- * <p>In addition to the regular methods defined by {@link Map}, this class offers many common
- * convenience methods, for example:
+ * <p>This class offers many common convenience methods, for example:
  * <ul>
  * <li>{@link #getFirst(String)} returns the first value associated with a given header name</li>
  * <li>{@link #add(String, String)} adds a header value to the list of values for a header name</li>
@@ -69,12 +71,12 @@ import org.springframework.util.StringUtils;
  * </ul>
  *
  * <p>Note that {@code HttpHeaders} instances created by the default constructor
- * treat header names in a case-insensitive manner. Instances created with the
- * {@link #HttpHeaders(MultiValueMap)} constructor like those instantiated
+ * treat header names in a case-insensitive manner; whereas, instances created with
+ * the {@link #HttpHeaders(MultiValueMap)} constructor &mdash; like those instantiated
  * internally by the framework to adapt to existing HTTP headers data structures
- * do guarantee per-header get/set/add operations to be case-insensitive as
+ * &mdash; guarantee per-header get/set/add operations to be case-insensitive as
  * mandated by the HTTP specification. However, it is not necessarily how
- * entries are actually stored, and this can lead to the reported {@code size()}
+ * entries are actually stored, and this can lead to the reported {@link #size()}
  * being inflated. Prefer using {@link #headerSet()} or {@link #headerNames()}
  * to ensure a case-insensitive view.
  *
@@ -82,8 +84,7 @@ import org.springframework.util.StringUtils;
  * Framework. If your application or library relies on other headers defined in RFCs,
  * please use methods that accept the header name as a parameter.
  *
- * <p>Since 7.0, this class no longer implements the {@code MultiValueMap}
- * contract.
+ * <p>Since 7.0, this class no longer implements the {@code MultiValueMap} contract.
  *
  * @author Arjen Poutsma
  * @author Sebastien Deleuze
@@ -125,6 +126,12 @@ public class HttpHeaders implements Serializable {
 	 * @see <a href="https://tools.ietf.org/html/rfc5789#section-3.1">Section 3.1 of RFC 5789</a>
 	 */
 	public static final String ACCEPT_PATCH = "Accept-Patch";
+	/**
+	 * The HTTP {@code Accept-Query} header field name.
+	 * @since 7.1
+	 * @see <a href="https://www.rfc-editor.org/rfc/rfc10008.html#section-3">Section 3 of RFC 10008</a>
+	 */
+	public static final String ACCEPT_QUERY = "Accept-Query";
 	/**
 	 * The HTTP {@code Accept-Ranges} header field name.
 	 * @see <a href="https://tools.ietf.org/html/rfc7233#section-2.3">Section 5.3.5 of RFC 7233</a>
@@ -430,7 +437,9 @@ public class HttpHeaders implements Serializable {
 	private static final DateTimeFormatter[] DATE_PARSERS = new DateTimeFormatter[] {
 			DateTimeFormatter.RFC_1123_DATE_TIME,
 			DateTimeFormatter.ofPattern("EEEE, dd-MMM-yy HH:mm:ss zzz", Locale.US),
-			DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss yyyy", Locale.US).withZone(GMT)
+			DateTimeFormatter.ofPattern("EEE MMM dd HH:mm:ss yyyy", Locale.US).withZone(GMT),
+			// RFC 9651: Structured Field Values for HTTP
+			new DateTimeFormatterBuilder().appendLiteral('@').appendValue(ChronoField.INSTANT_SECONDS).toFormatter(Locale.US).withZone(GMT)
 	};
 
 
@@ -439,15 +448,15 @@ public class HttpHeaders implements Serializable {
 
 
 	/**
-	 * Construct a new, empty instance of the {@code HttpHeaders} object
-	 * using an underlying case-insensitive map.
+	 * Construct a new, empty {@code HttpHeaders} instance using an underlying
+	 * case-insensitive map.
 	 */
 	public HttpHeaders() {
 		this(CollectionUtils.toMultiValueMap(new LinkedCaseInsensitiveMap<>(8, Locale.ROOT)));
 	}
 
 	/**
-	 * Construct a new {@code HttpHeaders} instance backed by an existing map.
+	 * Construct a new {@code HttpHeaders} instance backed by the supplied map.
 	 * <p>This constructor is available as an optimization for adapting to existing
 	 * headers map structures, primarily for internal use within the framework.
 	 * @param headers the headers map (expected to operate with case-insensitive keys)
@@ -455,42 +464,64 @@ public class HttpHeaders implements Serializable {
 	 */
 	public HttpHeaders(MultiValueMap<String, String> headers) {
 		Assert.notNull(headers, "MultiValueMap must not be null");
-		if (headers == EMPTY) {
-			this.headers = CollectionUtils.toMultiValueMap(new LinkedCaseInsensitiveMap<>(8, Locale.ENGLISH));
-		}
-		else if (headers instanceof HttpHeaders httpHeaders) {
-			while (httpHeaders.headers instanceof HttpHeaders wrapped) {
-				httpHeaders = wrapped;
-			}
-			this.headers = httpHeaders.headers;
-		}
-		else {
-			this.headers = headers;
-		}
+		this.headers = (headers instanceof HttpHeaders httpHeaders ? unwrap(httpHeaders) : headers);
 	}
 
 	/**
-	 * Construct a new {@code HttpHeaders} instance by removing any read-only
-	 * wrapper that may have been previously applied around the given
-	 * {@code HttpHeaders} via {@link #readOnlyHttpHeaders(HttpHeaders)}.
-	 * <p>Once the writable instance is mutated, the read-only instance is
-	 * likely to be out of sync and should be discarded.
+	 * Construct a new {@code HttpHeaders} instance backed by the supplied
+	 * {@code HttpHeaders}.
+	 * <p>Changes to the {@code HttpHeaders} created by this constructor will
+	 * write through to the supplied {@code HttpHeaders}. If you wish to copy
+	 * an existing {@code HttpHeaders} instance, use {@link #copyOf(HttpHeaders)}
+	 * instead.
+	 * <p>If the supplied {@code HttpHeaders} instance is a
+	 * {@linkplain #readOnlyHttpHeaders(HttpHeaders) read-only}
+	 * {@code HttpHeaders} wrapper, it will be unwrapped to ensure that the
+	 * {@code HttpHeaders} instance created by this constructor is mutable. Once
+	 * the writable instance is mutated, the read-only instance is likely to be
+	 * out of sync and should be discarded.
 	 * @param httpHeaders the headers to expose
 	 * @since 7.0
+	 * @see #copyOf(HttpHeaders)
 	 */
 	public HttpHeaders(HttpHeaders httpHeaders) {
 		Assert.notNull(httpHeaders, "HttpHeaders must not be null");
-		if (httpHeaders == EMPTY) {
-			this.headers = CollectionUtils.toMultiValueMap(new LinkedCaseInsensitiveMap<>(8, Locale.ENGLISH));
-		}
-		else {
-			while (httpHeaders.headers instanceof HttpHeaders wrapped) {
-				httpHeaders = wrapped;
-			}
-			this.headers = httpHeaders.headers;
-		}
+		this.headers = (httpHeaders == EMPTY ?
+				CollectionUtils.toMultiValueMap(new LinkedCaseInsensitiveMap<>(8, Locale.ENGLISH)) :
+				unwrap(httpHeaders));
 	}
 
+	/**
+	 * Create a new, mutable {@code HttpHeaders} instance and copy the supplied
+	 * headers to that new instance.
+	 * <p>Changes to the returned {@code HttpHeaders} will not affect the
+	 * supplied headers map.
+	 * @param headers the headers to copy
+	 * @since 7.0
+	 */
+	public static HttpHeaders copyOf(MultiValueMap<String, String> headers) {
+		HttpHeaders httpHeadersCopy = new HttpHeaders();
+		for (String name : headers.keySet()) {
+			List<String> values = headers.get(name);
+			if (values != null) {
+				httpHeadersCopy.put(name, new ArrayList<>(values));
+			}
+		}
+		return httpHeadersCopy;
+	}
+
+	/**
+	 * Create a new, mutable {@code HttpHeaders} instance and copy the supplied
+	 * headers to that new instance.
+	 * <p>Changes to the returned {@code HttpHeaders} will not affect the
+	 * supplied {@code HttpHeaders}.
+	 * @param httpHeaders the headers to copy
+	 * @since 7.0
+	 * @see #HttpHeaders(HttpHeaders)
+	 */
+	public static HttpHeaders copyOf(HttpHeaders httpHeaders) {
+		return copyOf(httpHeaders.headers);
+	}
 
 	/**
 	 * Get the list of header values for the given header name, if any.
@@ -626,6 +657,27 @@ public class HttpHeaders implements Serializable {
 	public List<MediaType> getAcceptPatch() {
 		return MediaType.parseMediaTypes(get(ACCEPT_PATCH));
 	}
+
+	/**
+	 * Set the list of acceptable {@linkplain MediaType media types} for
+	 * {@code QUERY} methods, as specified by the {@code Accept-Query} header.
+	 * @since 7.1
+	 */
+	public void setAcceptQuery(List<MediaType> mediaTypes) {
+		set(ACCEPT_QUERY, MediaType.toString(mediaTypes));
+	}
+
+	/**
+	 * Return the list of acceptable {@linkplain MediaType media types} for
+	 * {@code QUERY} methods, as specified by the {@code Accept-Query} header.
+	 * <p>Returns an empty list when the acceptable media types are unspecified.
+	 * @since 7.1
+	 */
+	public List<MediaType> getAcceptQuery() {
+		return MediaType.parseMediaTypes(get(ACCEPT_QUERY));
+	}
+
+
 
 	/**
 	 * Set the (new) value of the {@code Access-Control-Allow-Credentials} response header.
@@ -1215,8 +1267,7 @@ public class HttpHeaders implements Serializable {
 			try {
 				port = Integer.parseInt(portString);
 			}
-			catch (NumberFormatException ex) {
-				// ignore
+			catch (NumberFormatException ignored) {
 			}
 		}
 
@@ -1501,7 +1552,7 @@ public class HttpHeaders implements Serializable {
 	 * @since 5.1.4
 	 */
 	public void setInstant(String headerName, Instant date) {
-		setZonedDateTime(headerName, ZonedDateTime.ofInstant(date, GMT));
+		setZonedDateTime(headerName, date.atZone(GMT));
 	}
 
 	/**
@@ -1574,7 +1625,7 @@ public class HttpHeaders implements Serializable {
 			// No header value sent at all
 			return null;
 		}
-		if (headerValue.length() >= 3) {
+		if (headerValue.length() >= 3 || headerValue.startsWith("@")) {
 			// Short "0" or "-1" like values are never valid HTTP date headers...
 			// Let's only bother with DateTimeFormatter parsing for long enough values.
 
@@ -1592,7 +1643,6 @@ public class HttpHeaders implements Serializable {
 					// ignore
 				}
 			}
-
 		}
 		if (rejectInvalid) {
 			throw new IllegalArgumentException("Cannot parse date value \"" + headerValue +
@@ -1679,13 +1729,13 @@ public class HttpHeaders implements Serializable {
 	 * @since 5.2.3
 	 */
 	public void clearContentHeaders() {
-		this.headers.remove(HttpHeaders.CONTENT_DISPOSITION);
-		this.headers.remove(HttpHeaders.CONTENT_ENCODING);
-		this.headers.remove(HttpHeaders.CONTENT_LANGUAGE);
-		this.headers.remove(HttpHeaders.CONTENT_LENGTH);
-		this.headers.remove(HttpHeaders.CONTENT_LOCATION);
-		this.headers.remove(HttpHeaders.CONTENT_RANGE);
-		this.headers.remove(HttpHeaders.CONTENT_TYPE);
+		remove(HttpHeaders.CONTENT_DISPOSITION);
+		remove(HttpHeaders.CONTENT_ENCODING);
+		remove(HttpHeaders.CONTENT_LANGUAGE);
+		remove(HttpHeaders.CONTENT_LENGTH);
+		remove(HttpHeaders.CONTENT_LOCATION);
+		remove(HttpHeaders.CONTENT_RANGE);
+		remove(HttpHeaders.CONTENT_TYPE);
 	}
 
 	/**
@@ -1791,7 +1841,7 @@ public class HttpHeaders implements Serializable {
 	}
 
 	/**
-	 * Add all the values of the given {@code HttpHeaders} to the current header.
+	 * Add all name-value pairs of the given {@code HttpHeaders}.
 	 * <p>As values are represented as a {@code List}, duplicate values can be
 	 * introduced. See {@link #putAll(HttpHeaders)} to replace the list of
 	 * values of each individual header name instead.
@@ -1800,7 +1850,7 @@ public class HttpHeaders implements Serializable {
 	 * @see #putAll(HttpHeaders)
 	 */
 	public void addAll(HttpHeaders headers) {
-		this.headers.addAll(headers.headers);
+		headers.forEach(this::addAll);
 	}
 
 	/**
@@ -1816,8 +1866,8 @@ public class HttpHeaders implements Serializable {
 	}
 
 	/**
-	 * Set all single header value from the given Map under each of their
-	 * corresponding name.
+	 * Set all single header values from the given Map under each of their
+	 * corresponding names.
 	 * @param values the name-single-value pairs
 	 * @see #putAll(Map)
 	 */
@@ -1827,11 +1877,12 @@ public class HttpHeaders implements Serializable {
 
 	/**
 	 * Return this HttpHeaders as a {@code Map} with the first values for each
-	 * header name.
+	 * header name. This method is susceptible to include multiple
+	 * casing variants of a given header name, see {@link #asMultiValueMap()}
+	 * javadoc.
 	 * <p>The difference between this method and {@link #asSingleValueMap()} is
 	 * that this method returns a copy of the headers, whereas the latter
-	 * returns a view. This copy also ensures that collection-iterating methods
-	 * like {@code entrySet()} are case-insensitive.
+	 * returns a view.
 	 * @return a single value representation of these headers
 	 */
 	public Map<String, String> toSingleValueMap() {
@@ -1840,18 +1891,16 @@ public class HttpHeaders implements Serializable {
 
 	/**
 	 * Return this HttpHeaders as a {@code Map} with the first values for each
-	 * header name.
-	 * <p>The difference between this method and {@link #toSingleValueMap()} is
-	 * that this method returns a view of the headers, whereas the latter
-	 * returns a copy. This method is also susceptible to include multiple
+	 * header name. This method is susceptible to include multiple
 	 * casing variants of a given header name, see {@link #asMultiValueMap()}
 	 * javadoc.
+	 * <p>The difference between this method and {@link #toSingleValueMap()} is
+	 * that this method returns a view of the headers, whereas the latter
+	 * returns a copy.
 	 * @return a single value representation of these headers
-	 * @deprecated Use {@link #toSingleValueMap()} which performs a copy but
-	 * ensures that collection-iterating methods like {@code entrySet()} are
-	 * case-insensitive
+	 * @deprecated in favor of {@link #toSingleValueMap()} which performs a copy
 	 */
-	@Deprecated
+	@Deprecated(since = "7.0", forRemoval = true)
 	public Map<String, String> asSingleValueMap() {
 		return this.headers.asSingleValueMap();
 	}
@@ -1870,7 +1919,7 @@ public class HttpHeaders implements Serializable {
 	 * that would only accept maps. Generally avoid using HttpHeaders as a Map
 	 * or MultiValueMap.
 	 */
-	@Deprecated
+	@Deprecated(since = "7.0", forRemoval = true)
 	public MultiValueMap<String, String> asMultiValueMap() {
 		return this.headers;
 	}
@@ -1878,7 +1927,7 @@ public class HttpHeaders implements Serializable {
 	// Map-like implementation
 
 	/**
-	 * Returns {@code true} if this HttpHeaders contains no header entry.
+	 * Returns {@code true} if this HttpHeaders contains no header entries.
 	 */
 	public boolean isEmpty() {
 		return this.headers.isEmpty();
@@ -1902,7 +1951,7 @@ public class HttpHeaders implements Serializable {
 	 * @since 7.0
 	 */
 	public boolean hasHeaderValues(String headerName, List<String> values) {
-		return ObjectUtils.nullSafeEquals(this.headers.get(headerName), values);
+		return ObjectUtils.nullSafeEquals(get(headerName), values);
 	}
 
 	/**
@@ -1913,7 +1962,7 @@ public class HttpHeaders implements Serializable {
 	 * @since 7.0
 	 */
 	public boolean containsHeaderValue(String headerName, String value) {
-		final List<String> values = this.headers.get(headerName);
+		List<String> values = get(headerName);
 		if (values == null) {
 			return false;
 		}
@@ -1921,12 +1970,14 @@ public class HttpHeaders implements Serializable {
 	}
 
 	/**
-	 * Get the list of values associated with the given header name.
+	 * Get the list of values associated with the given header name, or null.
+	 * <p>To ensure support for double-quoted values, use
+	 * {@link #getValuesAsList(String)}.
 	 * @param headerName the header name
 	 * @since 7.0
+	 * @see #getValuesAsList(String)
 	 */
-	@Nullable
-	public List<String> get(String headerName) {
+	public @Nullable List<String> get(String headerName) {
 		return this.headers.get(headerName);
 	}
 
@@ -1960,24 +2011,25 @@ public class HttpHeaders implements Serializable {
 	 * @see #put(String, List)
 	 */
 	public void putAll(HttpHeaders headers) {
-		this.headers.putAll(headers.headers);
+		headers.forEach(this::put);
 	}
 
 	/**
-	 * Put all the entries from the given {@code MultiValueMap} into this
-	 * HttpHeaders.
+	 * Put all the entries from the given {@code Map} into this HttpHeaders.
 	 * @param headers the given headers
 	 * @see #put(String, List)
 	 */
 	public void putAll(Map<? extends String, ? extends List<String>> headers) {
-		this.headers.putAll(headers);
+		for (String name : headers.keySet()) {
+			put(name, headers.get(name));
+		}
 	}
 
 	/**
 	 * Remove a header from this HttpHeaders instance, and return the associated
 	 * value list or {@code null} if that header wasn't present.
 	 * @param key the name of the header to remove
-	 * @return the value list associated with the removed header name
+	 * @return the value list associated with the removed header name or {@code null}
 	 * @since 7.0
 	 */
 	public @Nullable List<String> remove(String key) {
@@ -1992,8 +2044,9 @@ public class HttpHeaders implements Serializable {
 	}
 
 	/**
-	 * Return the number of headers in the collection. This can be inflated,
-	 * see {@link HttpHeaders class level javadoc}.
+	 * Return the number of headers in the collection.
+	 * <p>This can be inflated: see the {@link HttpHeaders class level javadoc}
+	 * for details.
 	 */
 	public int size() {
 		return this.headers.size();
@@ -2005,12 +2058,12 @@ public class HttpHeaders implements Serializable {
 	 * @param action the action to be performed for each entry
 	 */
 	public void forEach(BiConsumer<? super String, ? super List<String>> action) {
-		this.headerSet().forEach(e -> action.accept(e.getKey(), e.getValue()));
+		headerSet().forEach(e -> action.accept(e.getKey(), e.getValue()));
 	}
 
 	/**
 	 * Return a view of the headers as an entry {@code Set} of key-list pairs.
-	 * Both {@link Iterator#remove()} and {@link Entry#setValue}
+	 * <p>Both {@link Iterator#remove()} and {@link Entry#setValue}
 	 * are supported and mutate the headers.
 	 * <p>This collection is guaranteed to contain one entry per header name
 	 * even if the backing structure stores multiple casing variants of names,
@@ -2025,8 +2078,9 @@ public class HttpHeaders implements Serializable {
 	}
 
 	/**
-	 * Return the set of header names. Both {@link Set#remove(Object)} and
-	 * {@link Set#clear()} operations are supported and mutate the headers.
+	 * Return the set of header names.
+	 * <p>Both {@link Set#remove(Object)} and {@link Set#clear()} operations are
+	 * supported and mutate the headers.
 	 * <p>This collection is guaranteed to contain only one casing variant
 	 * of each header name even if the backing structure stores multiple casing
 	 * variants of names. The first encountered variant is the one that is
@@ -2081,17 +2135,22 @@ public class HttpHeaders implements Serializable {
 
 	/**
 	 * Helps to format HTTP header values, as HTTP header values themselves can
-	 * contain comma-separated values, can become confusing with regular
+	 * contain comma-separated values which can become confusing with regular
 	 * {@link Map} formatting that also uses commas between entries.
 	 * <p>Additionally, this method displays the native list of header names
-	 * with the mention {@code with native header names} if the underlying
+	 * and includes the text "with native header names" if the underlying
 	 * implementation stores multiple casing variants of header names (see
 	 * {@link HttpHeaders class level javadoc}).
 	 * @param headers the headers to format
-	 * @return the headers to a String
+	 * @return a String representation of the headers
 	 * @since 5.1.4
 	 */
 	public static String formatHeaders(MultiValueMap<String, String> headers) {
+		return doFormatHeaders(headers instanceof HttpHeaders httpHeaders ?
+				unwrap(httpHeaders) : headers);
+	}
+
+	private static String doFormatHeaders(MultiValueMap<String, String> headers) {
 		Set<String> headerNames = new CaseInsensitiveHeaderNameSet(headers);
 		String suffix = "]";
 		if (headerNames.size() != headers.size()) {
@@ -2155,7 +2214,7 @@ public class HttpHeaders implements Serializable {
 	// Package-private: used in ResponseCookie
 	static String formatDate(long date) {
 		Instant instant = Instant.ofEpochMilli(date);
-		ZonedDateTime time = ZonedDateTime.ofInstant(instant, GMT);
+		ZonedDateTime time = instant.atZone(GMT);
 		return DATE_FORMATTER.format(time);
 	}
 
@@ -2165,6 +2224,7 @@ public class HttpHeaders implements Serializable {
 		private static final Object VALUE = new Object();
 
 		private final MultiValueMap<String, String> headers;
+
 		private final Map<String, Object> deduplicatedNames;
 
 		public CaseInsensitiveHeaderNameSet(MultiValueMap<String, String> headers) {
@@ -2206,13 +2266,14 @@ public class HttpHeaders implements Serializable {
 		}
 	}
 
+
 	private static class HeaderNamesIterator implements Iterator<String> {
 
+		private final MultiValueMap<String, String> headers;
+
+		private final Iterator<String> namesIterator;
 
 		private @Nullable String currentName;
-
-		private final MultiValueMap<String, String> headers;
-		private final Iterator<String> namesIterator;
 
 		public HeaderNamesIterator(MultiValueMap<String, String> headers, Map<String, Object> caseInsensitiveNames) {
 			this.headers = headers;
@@ -2247,6 +2308,7 @@ public class HttpHeaders implements Serializable {
 	private static final class CaseInsensitiveEntrySet extends AbstractSet<Entry<String, List<String>>> {
 
 		private final MultiValueMap<String, String> headers;
+
 		private final CaseInsensitiveHeaderNameSet nameSet;
 
 		public CaseInsensitiveEntrySet(MultiValueMap<String, String> headers) {
@@ -2263,6 +2325,7 @@ public class HttpHeaders implements Serializable {
 		public int size() {
 			return this.nameSet.size();
 		}
+
 
 		private final class CaseInsensitiveIterator implements Iterator<Entry<String, List<String>>> {
 
@@ -2288,6 +2351,7 @@ public class HttpHeaders implements Serializable {
 			}
 		}
 
+
 		private final class CaseInsensitiveEntry implements Entry<String, List<String>> {
 
 			private final String key;
@@ -2308,26 +2372,21 @@ public class HttpHeaders implements Serializable {
 
 			@Override
 			public List<String> setValue(List<String> value) {
-				List<String> previousValues = Objects.requireNonNull(
-						CaseInsensitiveEntrySet.this.headers.get(this.key));
+				List<String> previous = Objects.requireNonNull(CaseInsensitiveEntrySet.this.headers.get(this.key));
 				CaseInsensitiveEntrySet.this.headers.put(this.key, value);
-				return previousValues;
+				return previous;
 			}
 
 			@Override
-			public boolean equals(Object o) {
-				if (this == o) {
-					return true;
-				}
-				if (!(o instanceof Map.Entry<?,?> that)) {
-					return false;
-				}
-				return ObjectUtils.nullSafeEquals(getKey(), that.getKey()) && ObjectUtils.nullSafeEquals(getValue(), that.getValue());
+			public boolean equals(@Nullable Object other) {
+				return (this == other || (other instanceof Map.Entry<?, ?> that &&
+						ObjectUtils.nullSafeEquals(getKey(), that.getKey()) &&
+						ObjectUtils.nullSafeEquals(getValue(), that.getValue())));
 			}
 
 			@Override
 			public int hashCode() {
-				return ObjectUtils.nullSafeHash(getKey(), getValue());
+				return this.key.hashCode();  // avoid value lookup for hashCode
 			}
 		}
 	}

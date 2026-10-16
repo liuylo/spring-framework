@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -60,7 +60,7 @@ public final class CloseStatus {
 	 */
 	public static final CloseStatus NOT_ACCEPTABLE = new CloseStatus(1003);
 
-	// 10004: Reserved.
+	// 1004: Reserved.
 	// The specific meaning might be defined in the future.
 
 	/**
@@ -184,14 +184,6 @@ public final class CloseStatus {
 	public CloseStatus withReason(String reason) {
 		Assert.hasText(reason, "Reason must not be empty");
 		return new CloseStatus(this.code, reason);
-	}
-
-	/**
-	 * @deprecated as of 5.3 in favor of comparing codes directly
-	 */
-	@Deprecated
-	public boolean equalsCode(CloseStatus other) {
-		return (this.code == other.code);
 	}
 
 

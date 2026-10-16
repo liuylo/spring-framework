@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -115,6 +115,11 @@ public class MarshallingHttpMessageConverter extends AbstractXmlHttpMessageConve
 	}
 
 	@Override
+	public boolean canWriteRepeatedly(Object o, @Nullable MediaType contentType) {
+		return true;
+	}
+
+	@Override
 	protected boolean supports(Class<?> clazz) {
 		// should not be called, since we override canRead()/canWrite()
 		throw new UnsupportedOperationException();
@@ -137,7 +142,9 @@ public class MarshallingHttpMessageConverter extends AbstractXmlHttpMessageConve
 	}
 
 	@Override
+	@SuppressWarnings("removal")
 	protected boolean supportsRepeatableWrites(Object o) {
 		return true;
 	}
+
 }

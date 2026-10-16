@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -189,6 +189,9 @@ public final class PathPatternsRequestCondition extends AbstractRequestCondition
 	@Override
 	public @Nullable PathPatternsRequestCondition getMatchingCondition(HttpServletRequest request) {
 		PathContainer path = ServletRequestPathUtils.getParsedRequestPath(request).pathWithinApplication();
+		if (this.patterns.size() == 1) {
+			return (this.patterns.first().matches(path) ? this : null);
+		}
 		SortedSet<PathPattern> matches = getMatchingPatterns(path);
 		return (matches != null ? new PathPatternsRequestCondition(matches) : null);
 	}

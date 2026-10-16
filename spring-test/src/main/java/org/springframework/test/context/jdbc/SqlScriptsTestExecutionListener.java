@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,6 +35,7 @@ import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.core.io.Resource;
+import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.test.context.TestContext;
 import org.springframework.test.context.TestContextAnnotationUtils;
@@ -117,6 +118,12 @@ import static org.springframework.util.ResourceUtils.CLASSPATH_URL_PREFIX;
  */
 public class SqlScriptsTestExecutionListener extends AbstractTestExecutionListener implements AotTestExecutionListener {
 
+	/**
+	 * The {@link #getOrder() order} value for this listener: {@value}.
+	 * @since 6.2.3
+	 */
+	public static final int ORDER = 5000;
+
 	private static final String SLASH = "/";
 
 	private static final Log logger = LogFactory.getLog(SqlScriptsTestExecutionListener.class);
@@ -126,11 +133,16 @@ public class SqlScriptsTestExecutionListener extends AbstractTestExecutionListen
 
 
 	/**
-	 * Returns {@code 5000}.
+	 * Returns {@value #ORDER}, which ensures that the {@code SqlScriptsTestExecutionListener}
+	 * is ordered after the
+	 * {@link org.springframework.test.context.transaction.TransactionalTestExecutionListener
+	 * TransactionalTestExecutionListener} and before the
+	 * {@link org.springframework.test.context.event.EventPublishingTestExecutionListener
+	 * EventPublishingTestExecutionListener}.
 	 */
 	@Override
 	public final int getOrder() {
-		return 5000;
+		return ORDER;
 	}
 
 	/**
@@ -378,10 +390,13 @@ public class SqlScriptsTestExecutionListener extends AbstractTestExecutionListen
 	 * proxies as necessary to compare the target instances.
 	 * @since 5.3.4
 	 * @see TransactionSynchronizationUtils#unwrapResourceIfNecessary(Object)
+	 * @see TransactionAwareDataSourceProxy#getTargetDataSource()
 	 */
-	private static boolean sameDataSource(DataSource ds1, DataSource ds2) {
-		return TransactionSynchronizationUtils.unwrapResourceIfNecessary(ds1)
-					.equals(TransactionSynchronizationUtils.unwrapResourceIfNecessary(ds2));
+	private static boolean sameDataSource(DataSource dataSource, DataSource dataSourceFromTxMgr) {
+		return (TransactionSynchronizationUtils.unwrapResourceIfNecessary(dataSource)
+				.equals(TransactionSynchronizationUtils.unwrapResourceIfNecessary(dataSourceFromTxMgr)) ||
+					(dataSource instanceof TransactionAwareDataSourceProxy tadsp &&
+						dataSourceFromTxMgr.equals(tadsp.getTargetDataSource())));
 	}
 
 	private @Nullable DataSource getDataSourceFromTransactionManager(PlatformTransactionManager transactionManager) {

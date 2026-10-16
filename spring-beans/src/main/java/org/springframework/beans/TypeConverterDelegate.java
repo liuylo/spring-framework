@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -295,8 +295,13 @@ class TypeConverterDelegate {
 				ClassLoader cl = this.targetObject.getClass().getClassLoader();
 				try {
 					Class<?> enumValueType = ClassUtils.forName(enumType, cl);
-					Field enumField = enumValueType.getField(fieldName);
-					convertedValue = enumField.get(null);
+					if (enumValueType.isEnum()) {
+						Field enumField = enumValueType.getField(fieldName);
+						convertedValue = enumField.get(null);
+					}
+					else if (logger.isTraceEnabled()) {
+						logger.trace("Specified enum class [" + enumType + "] is not a Java enum");
+					}
 				}
 				catch (ClassNotFoundException ex) {
 					if (logger.isTraceEnabled()) {
@@ -313,8 +318,7 @@ class TypeConverterDelegate {
 
 		if (convertedValue == currentConvertedValue) {
 			// Try field lookup as fallback: for Java enum or custom enum
-			// with values defined as static fields. Resulting value still needs
-			// to be checked, hence we don't return it right away.
+			// with values defined as static fields.
 			try {
 				Field enumField = requiredType.getField(trimmedValue);
 				ReflectionUtils.makeAccessible(enumField);

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Set;
 
 import kotlin.jvm.JvmClassMappingKt;
+import kotlin.jvm.internal.DefaultConstructorMarker;
 import kotlin.reflect.KClass;
 import kotlin.reflect.KFunction;
 import kotlin.reflect.KParameter;
@@ -44,7 +45,6 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.core.DefaultParameterNameDiscoverer;
 import org.springframework.core.KotlinDetector;
 import org.springframework.core.MethodParameter;
-import org.springframework.core.ParameterNameDiscoverer;
 import org.springframework.core.ResolvableType;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
@@ -71,9 +71,6 @@ import org.springframework.util.StringUtils;
  */
 public abstract class BeanUtils {
 
-	private static final ParameterNameDiscoverer parameterNameDiscoverer =
-			new DefaultParameterNameDiscoverer();
-
 	private static final Set<Class<?>> unknownEditorTypes =
 			Collections.newSetFromMap(new ConcurrentReferenceHashMap<>(64));
 
@@ -87,6 +84,8 @@ public abstract class BeanUtils {
 			double.class, 0D,
 			char.class, '\0');
 
+	private static final boolean KOTLIN_REFLECT_PRESENT = KotlinDetector.isKotlinReflectPresent();
+
 
 	/**
 	 * Convenience method to instantiate a class using its no-arg constructor.
@@ -94,10 +93,9 @@ public abstract class BeanUtils {
 	 * @return the new instance
 	 * @throws BeanInstantiationException if the bean cannot be instantiated
 	 * @see Class#newInstance()
-	 * @deprecated as of Spring 5.0, following the deprecation of
-	 * {@link Class#newInstance()} in JDK 9
+	 * @deprecated following the deprecation of {@link Class#newInstance()} in JDK 9
 	 */
-	@Deprecated
+	@Deprecated(since = "5.0")
 	public static <T> T instantiate(Class<T> clazz) throws BeanInstantiationException {
 		Assert.notNull(clazz, "Class must not be null");
 		if (clazz.isInterface()) {
@@ -186,7 +184,7 @@ public abstract class BeanUtils {
 		Assert.notNull(ctor, "Constructor must not be null");
 		try {
 			ReflectionUtils.makeAccessible(ctor);
-			if (KotlinDetector.isKotlinReflectPresent() && KotlinDetector.isKotlinType(ctor.getDeclaringClass())) {
+			if (KOTLIN_REFLECT_PRESENT && KotlinDetector.isKotlinType(ctor.getDeclaringClass())) {
 				return KotlinDelegate.instantiateClass(ctor, args);
 			}
 			else {
@@ -196,7 +194,7 @@ public abstract class BeanUtils {
 					return ctor.newInstance();
 				}
 				Class<?>[] parameterTypes = ctor.getParameterTypes();
-				Object[] argsWithDefaultValues = new Object[args.length];
+				@Nullable Object[] argsWithDefaultValues = new Object[args.length];
 				for (int i = 0 ; i < args.length; i++) {
 					if (args[i] == null) {
 						Class<?> parameterType = parameterTypes[i];
@@ -279,7 +277,7 @@ public abstract class BeanUtils {
 	 */
 	public static <T> @Nullable Constructor<T> findPrimaryConstructor(Class<T> clazz) {
 		Assert.notNull(clazz, "Class must not be null");
-		if (KotlinDetector.isKotlinReflectPresent() && KotlinDetector.isKotlinType(clazz)) {
+		if (KOTLIN_REFLECT_PRESENT && KotlinDetector.isKotlinType(clazz)) {
 			return KotlinDelegate.findPrimaryConstructor(clazz);
 		}
 		if (clazz.isRecord()) {
@@ -654,11 +652,15 @@ public abstract class BeanUtils {
 	 * @see ConstructorProperties
 	 * @see DefaultParameterNameDiscoverer
 	 */
-	public static String[] getParameterNames(Constructor<?> ctor) {
+	@SuppressWarnings("NullAway") // Dataflow analysis limitation
+	public static @Nullable String[] getParameterNames(Constructor<?> ctor) {
 		ConstructorProperties cp = ctor.getAnnotation(ConstructorProperties.class);
-		String[] paramNames = (cp != null ? cp.value() : parameterNameDiscoverer.getParameterNames(ctor));
+		@Nullable String[] paramNames = (cp != null ? cp.value() :
+				DefaultParameterNameDiscoverer.getSharedInstance().getParameterNames(ctor));
 		Assert.state(paramNames != null, () -> "Cannot resolve parameter names for constructor " + ctor);
-		Assert.state(paramNames.length == ctor.getParameterCount(),
+		int parameterCount = (KOTLIN_REFLECT_PRESENT && KotlinDelegate.hasDefaultConstructorMarker(ctor) ?
+				ctor.getParameterCount() - 1 : ctor.getParameterCount());
+		Assert.state(paramNames.length == parameterCount,
 				() -> "Invalid number of parameter names: " + paramNames.length + " for constructor " + ctor);
 		return paramNames;
 	}
@@ -926,6 +928,11 @@ public abstract class BeanUtils {
 				}
 			}
 			return kotlinConstructor.callBy(argParameters);
+		}
+
+		public static boolean hasDefaultConstructorMarker(Constructor<?> ctor) {
+			int parameterCount = ctor.getParameterCount();
+			return parameterCount > 0 && ctor.getParameters()[parameterCount -1].getType() == DefaultConstructorMarker.class;
 		}
 	}
 

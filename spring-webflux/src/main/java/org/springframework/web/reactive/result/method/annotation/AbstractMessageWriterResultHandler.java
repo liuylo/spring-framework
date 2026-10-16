@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import org.springframework.core.ReactiveAdapter;
 import org.springframework.core.ReactiveAdapterRegistry;
 import org.springframework.core.ResolvableType;
 import org.springframework.core.codec.Hints;
+import org.springframework.http.HttpRequest;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
@@ -130,11 +131,36 @@ public abstract class AbstractMessageWriterResultHandler extends HandlerResultHa
 	/**
 	 * Invoke the configured {@link ErrorResponse.Interceptor}'s.
 	 * @since 6.2
+	 * @deprecated as of 7.1, in favor of
+	 * {@link #invokeErrorResponseInterceptors(ProblemDetail, ErrorResponse, HttpRequest)}
 	 */
+	@Deprecated(since = "7.1", forRemoval = true)
 	protected void invokeErrorResponseInterceptors(ProblemDetail detail, @Nullable ErrorResponse errorResponse) {
 		try {
 			for (ErrorResponse.Interceptor handler : this.errorResponseInterceptors) {
 				handler.handleError(detail, errorResponse);
+			}
+		}
+		catch (Throwable ex) {
+			// ignore
+		}
+	}
+
+	/**
+	 * Invoke the configured {@link ErrorResponse.Interceptor}'s with the
+	 * current request.
+	 * @param detail the {@code ProblemDetail} to be rendered
+	 * @param errorResponse the {@code ErrorResponse}, or {@code null} if there isn't one
+	 * @param request the current request
+	 * @since 7.1
+	 * @see ErrorResponse.Interceptor#handleError(ProblemDetail, ErrorResponse, HttpRequest)
+	 */
+	protected void invokeErrorResponseInterceptors(
+			ProblemDetail detail, @Nullable ErrorResponse errorResponse, HttpRequest request) {
+
+		try {
+			for (ErrorResponse.Interceptor handler : this.errorResponseInterceptors) {
+				handler.handleError(detail, errorResponse, request);
 			}
 		}
 		catch (Throwable ex) {
@@ -267,9 +293,9 @@ public abstract class AbstractMessageWriterResultHandler extends HandlerResultHa
 
 	private List<MediaType> getMediaTypesFor(ResolvableType elementType) {
 		List<MediaType> writableMediaTypes = new ArrayList<>();
-		for (HttpMessageWriter<?> converter : getMessageWriters()) {
-			if (converter.canWrite(elementType, null)) {
-				writableMediaTypes.addAll(converter.getWritableMediaTypes(elementType));
+		for (HttpMessageWriter<?> messageWriter : getMessageWriters()) {
+			if (messageWriter.canWrite(elementType, null)) {
+				writableMediaTypes.addAll(messageWriter.getWritableMediaTypes(elementType));
 			}
 		}
 		return writableMediaTypes;

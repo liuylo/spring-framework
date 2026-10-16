@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import org.springframework.beans.testfixture.beans.TestBean;
 import org.springframework.core.DefaultParameterNameDiscoverer;
@@ -60,6 +62,7 @@ class InitBinderBindingContextTests {
 
 
 	@Test
+	@SuppressWarnings("removal")
 	void createBinder() throws Exception {
 		MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/"));
 		BindingContext context = createBindingContext("initBinder", WebDataBinder.class);
@@ -82,6 +85,7 @@ class InitBinderBindingContextTests {
 	}
 
 	@Test
+	@SuppressWarnings("removal")
 	void createBinderWithAttrName() throws Exception {
 		MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/"));
 		BindingContext context = createBindingContext("initBinderWithAttributeName", WebDataBinder.class);
@@ -92,6 +96,7 @@ class InitBinderBindingContextTests {
 	}
 
 	@Test
+	@SuppressWarnings("removal")
 	void createBinderWithAttrNameNoMatch() throws Exception {
 		MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/"));
 		BindingContext context = createBindingContext("initBinderWithAttributeName", WebDataBinder.class);
@@ -101,6 +106,7 @@ class InitBinderBindingContextTests {
 	}
 
 	@Test
+	@SuppressWarnings("removal")
 	void createBinderNullAttrName() throws Exception {
 		MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/"));
 		BindingContext context = createBindingContext("initBinderWithAttributeName", WebDataBinder.class);
@@ -117,6 +123,7 @@ class InitBinderBindingContextTests {
 	}
 
 	@Test
+	@SuppressWarnings("removal")
 	void createBinderTypeConversion() throws Exception {
 		MockServerHttpRequest request = MockServerHttpRequest.get("/path?requestParam=22").build();
 		MockServerWebExchange exchange = MockServerWebExchange.from(request);
@@ -213,11 +220,32 @@ class InitBinderBindingContextTests {
 		MockServerWebExchange exchange = MockServerWebExchange.from(request);
 
 		BindingContext context = createBindingContext("initBinderWithAttributeName", WebDataBinder.class);
-		ExtendedWebExchangeDataBinder binder = (ExtendedWebExchangeDataBinder) context.createDataBinder(exchange, null, "", null);
+		org.springframework.web.reactive.result.ExtendedWebExchangeDataBinder binder =
+				(org.springframework.web.reactive.result.ExtendedWebExchangeDataBinder)
+						context.createDataBinder(exchange, null, "", null);
 		binder.addHeaderPredicate(name -> !name.equalsIgnoreCase("Another-Int-Array"));
 
 		Map<String, Object> map = binder.getValuesToBind(exchange).block();
 		assertThat(map).containsExactlyInAnyOrderEntriesOf(Map.of("someIntArray", "1", "Some-Int-Array", "1"));
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"Accept", "Authorization", "Connection",
+			"Cookie", "From", "Host", "Origin", "Priority", "Range", "Referer", "Upgrade", "priority"})
+	void filteredHeaders(String headerName) throws Exception {
+		MockServerHttpRequest request = MockServerHttpRequest.get("/path")
+				.header(headerName, "u1")
+				.build();
+
+		MockServerWebExchange exchange = MockServerWebExchange.from(request);
+
+		BindingContext context = createBindingContext("initBinderWithAttributeName", WebDataBinder.class);
+		org.springframework.web.reactive.result.ExtendedWebExchangeDataBinder binder =
+				(org.springframework.web.reactive.result.ExtendedWebExchangeDataBinder)
+						context.createDataBinder(exchange, null, "", null);
+
+		Map<String, Object> map = binder.getValuesToBind(exchange).block();
+		assertThat(map).isEmpty();
 	}
 
 	private BindingContext createBindingContext(String methodName, Class<?>... parameterTypes) throws Exception {
@@ -237,11 +265,13 @@ class InitBinderBindingContextTests {
 	private static class InitBinderHandler {
 
 		@InitBinder
+		@SuppressWarnings("removal")
 		public void initBinder(WebDataBinder dataBinder) {
 			dataBinder.setDisallowedFields("id");
 		}
 
 		@InitBinder(value="foo")
+		@SuppressWarnings("removal")
 		public void initBinderWithAttributeName(WebDataBinder dataBinder) {
 			dataBinder.setDisallowedFields("id");
 		}
@@ -252,6 +282,7 @@ class InitBinderBindingContextTests {
 		}
 
 		@InitBinder
+		@SuppressWarnings("removal")
 		public void initBinderTypeConversion(WebDataBinder dataBinder, @RequestParam int requestParam) {
 			dataBinder.setDisallowedFields("requestParam-" + requestParam);
 		}

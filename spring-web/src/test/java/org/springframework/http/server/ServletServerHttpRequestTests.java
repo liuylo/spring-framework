@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,9 +18,12 @@ package org.springframework.http.server;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequestWrapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -165,6 +168,21 @@ class ServletServerHttpRequestTests {
 		assertThat(request.getHeaders().isEmpty()).as("Invalid content-type should not raise exception").isTrue();
 	}
 
+	@Test // gh-36426
+	void getHeadersWithCharacterEncoding() {
+		mockRequest.setContentType("application/x-www-form-urlencoded");
+		HttpServletRequest wrapper = new HttpServletRequestWrapper(mockRequest) {
+			@Override
+			public String getCharacterEncoding() {
+				return StandardCharsets.ISO_8859_1.name();
+			}
+		};
+
+		HttpHeaders headers = new ServletServerHttpRequest(wrapper).getHeaders();
+		assertThat(headers.getContentType()).isEqualTo(
+				new MediaType(MediaType.APPLICATION_FORM_URLENCODED, StandardCharsets.ISO_8859_1));
+	}
+
 	@Test
 	void getBody() throws IOException {
 		byte[] content = "Hello World".getBytes(StandardCharsets.UTF_8);
@@ -182,9 +200,7 @@ class ServletServerHttpRequestTests {
 		mockRequest.addParameter("name 2", "value 2+1", "value 2+2");
 		mockRequest.addParameter("name 3", (String) null);
 
-		byte[] result = FileCopyUtils.copyToByteArray(request.getBody());
-		byte[] content = "name+1=value+1&name+2=value+2%2B1&name+2=value+2%2B2&name+3".getBytes(StandardCharsets.UTF_8);
-		assertThat(result).as("Invalid content returned").isEqualTo(content);
+		assertFormContent("name+1=value+1&name+2=value+2%2B1&name+2=value+2%2B2&name+3");
 	}
 
 	@Test
@@ -192,9 +208,7 @@ class ServletServerHttpRequestTests {
 		mockRequest.setContentType("application/x-www-form-urlencoded; charset=UTF-8");
 		mockRequest.setMethod("POST");
 
-		byte[] result = FileCopyUtils.copyToByteArray(request.getBody());
-		byte[] content = "".getBytes(StandardCharsets.UTF_8);
-		assertThat(result).as("Invalid content returned").isEqualTo(content);
+		assertFormContent("");
 	}
 
 	@Test  // gh-31327
@@ -206,9 +220,7 @@ class ServletServerHttpRequestTests {
 		mockRequest.setContent("foo=bar".getBytes(StandardCharsets.UTF_8));
 		mockRequest.addHeader("Content-Length", 7);
 
-		byte[] result = FileCopyUtils.copyToByteArray(request.getBody());
-		byte[] content = "foo=bar".getBytes(StandardCharsets.UTF_8);
-		assertThat(result).as("Invalid content returned").isEqualTo(content);
+		assertFormContent("foo=bar");
 	}
 
 	@Test  // gh-32471
@@ -219,9 +231,25 @@ class ServletServerHttpRequestTests {
 		mockRequest.addParameter("lastName", "Test@er");
 		mockRequest.addHeader("Content-Length", 26);
 
+		int contentLength = assertFormContent("name=Test&lastName=Test%40er");
+		assertThat(request.getHeaders().getContentLength()).isEqualTo(contentLength);
+	}
+
+	@Test  // gh-34675
+	void getFormBodyWithNotUtf8Charset() throws IOException {
+		String charset = "windows-1251";
+		mockRequest.setContentType("application/x-www-form-urlencoded; charset=" + charset);
+		mockRequest.setMethod("POST");
+		mockRequest.addParameter("x", URLDecoder.decode("%e0%e0%e0", charset));
+
+		assertFormContent("x=%E0%E0%E0");
+	}
+
+	private int assertFormContent(String expected) throws IOException {
 		byte[] result = FileCopyUtils.copyToByteArray(request.getBody());
-		assertThat(result).isEqualTo("name=Test&lastName=Test%40er".getBytes(StandardCharsets.UTF_8));
-		assertThat(request.getHeaders().getContentLength()).isEqualTo(result.length);
+		byte[] content = expected.getBytes(StandardCharsets.UTF_8);
+		assertThat(result).as("Invalid content returned").isEqualTo(content);
+		return result.length;
 	}
 
 	@Test

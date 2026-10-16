@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,10 +19,12 @@ package org.springframework.test.web.client.match;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.xml.xpath.XPathExpressionException;
 
 import org.hamcrest.Matcher;
+import org.jspecify.annotations.Nullable;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -98,7 +100,7 @@ public abstract class MockRestRequestMatchers {
 	 * @param uriVars zero or more URI variables to populate the expected URI
 	 * @return the request matcher
 	 */
-	public static RequestMatcher requestToUriTemplate(String expectedUri, Object... uriVars) {
+	public static RequestMatcher requestToUriTemplate(String expectedUri, @Nullable Object... uriVars) {
 		Assert.notNull(expectedUri, "'uri' must not be null");
 		URI uri = UriComponentsBuilder.fromUriString(expectedUri).buildAndExpand(uriVars).encode().toUri();
 		return requestTo(uri);
@@ -129,6 +131,7 @@ public abstract class MockRestRequestMatchers {
 	 * @since 5.3.27
 	 * @see #queryParam(String, Matcher...)
 	 * @see #queryParam(String, String...)
+	 * @see #queryParamCount(int)
 	 */
 	public static RequestMatcher queryParamList(String name, Matcher<? super List<String>> matcher) {
 		return request -> {
@@ -157,6 +160,7 @@ public abstract class MockRestRequestMatchers {
 	 * parameter value
 	 * @see #queryParamList(String, Matcher)
 	 * @see #queryParam(String, String...)
+	 * @see #queryParamCount(int)
 	 */
 	@SafeVarargs
 	@SuppressWarnings("NullAway") // Dataflow analysis limitation
@@ -186,6 +190,7 @@ public abstract class MockRestRequestMatchers {
 	 * parameter value
 	 * @see #queryParamList(String, Matcher)
 	 * @see #queryParam(String, Matcher...)
+	 * @see #queryParamCount(int)
 	 */
 	@SuppressWarnings("NullAway") // Dataflow analysis limitation
 	public static RequestMatcher queryParam(String name, String... expectedValues) {
@@ -194,6 +199,25 @@ public abstract class MockRestRequestMatchers {
 			assertValueCount(name, params, expectedValues.length);
 			for (int i = 0 ; i < expectedValues.length; i++) {
 				assertEquals("Query param [" + name + "]", expectedValues[i], params.get(name).get(i));
+			}
+		};
+	}
+
+	/**
+	 * Assert the number of query parameters present in the request.
+	 * @param expectedCount the number of expected query parameters
+	 * @since 7.0
+	 * @see #queryParamList(String, Matcher)
+	 * @see #queryParam(String, Matcher...)
+	 * @see #queryParam(String, String...)
+	 */
+	@SuppressWarnings("NullAway") // Dataflow analysis limitation
+	public static RequestMatcher queryParamCount(int expectedCount) {
+		return request -> {
+			Set<String> parameterNames = getQueryParams(request).keySet();
+			int actualCount = parameterNames.size();
+			if (expectedCount != actualCount) {
+				fail("Expected %d query parameter(s) but found %d: %s".formatted(expectedCount, actualCount, parameterNames));
 			}
 		};
 	}
@@ -358,7 +382,6 @@ public abstract class MockRestRequestMatchers {
 
 
 	private static void assertValueCount(String name, MultiValueMap<String, String> map, int count) {
-
 		List<String> values = map.get(name);
 		String message = "Expected query param <" + name + ">";
 		if (values == null) {
@@ -370,7 +393,6 @@ public abstract class MockRestRequestMatchers {
 	}
 
 	private static void assertValueCount(String name, HttpHeaders headers, int count) {
-
 		List<String> values = headers.get(name);
 		String message = "Expected header <" + name + ">";
 		if (values == null) {

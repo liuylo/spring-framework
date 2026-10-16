@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +28,7 @@ import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
 import org.springframework.beans.propertyeditors.StringArrayPropertyEditor;
-import org.springframework.beans.testfixture.beans.Colour;
+import org.springframework.beans.testfixture.beans.Color;
 import org.springframework.beans.testfixture.beans.TestBean;
 import org.springframework.util.StringUtils;
 import org.springframework.validation.BeanPropertyBindingResult;
@@ -57,6 +57,7 @@ class OptionTagTests extends AbstractHtmlElementTagTests {
 	private SelectTag parentTag;
 
 	@Override
+	@SuppressWarnings("serial")
 	protected void onSetUp() {
 		this.tag = new OptionTag() {
 			@Override
@@ -482,7 +483,7 @@ class OptionTagTests extends AbstractHtmlElementTagTests {
 	protected void extendRequest(MockHttpServletRequest request) {
 		TestBean bean = new TestBean();
 		bean.setName("foo");
-		bean.setFavouriteColour(Colour.GREEN);
+		bean.setFavouriteColor(Color.GREEN);
 		bean.setStringArray(ARRAY);
 		bean.setSpouse(new TestBean("Sally"));
 		bean.setSomeNumber(Float.valueOf("12.34"));

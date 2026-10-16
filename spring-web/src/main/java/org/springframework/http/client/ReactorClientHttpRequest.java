@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,9 +19,7 @@ package org.springframework.http.client;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
-import java.time.Duration;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
@@ -29,6 +27,7 @@ import org.jspecify.annotations.Nullable;
 import org.reactivestreams.FlowAdapters;
 import org.reactivestreams.Publisher;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 import reactor.netty.NettyOutbound;
 import reactor.netty.http.client.HttpClient;
 import reactor.netty.http.client.HttpClientRequest;
@@ -43,6 +42,7 @@ import org.springframework.util.StreamUtils;
  *
  * @author Arjen Poutsma
  * @author Juergen Hoeller
+ * @author Brian Clozel
  * @since 6.1
  */
 final class ReactorClientHttpRequest extends AbstractStreamingClientHttpRequest {
@@ -53,7 +53,7 @@ final class ReactorClientHttpRequest extends AbstractStreamingClientHttpRequest 
 
 	private final URI uri;
 
-	private final @Nullable Duration exchangeTimeout;
+	private final Executor executor;
 
 
 	/**
@@ -64,20 +64,24 @@ final class ReactorClientHttpRequest extends AbstractStreamingClientHttpRequest 
 	 * @since 6.2
 	 */
 	public ReactorClientHttpRequest(HttpClient httpClient, HttpMethod method, URI uri) {
-		this.httpClient = httpClient;
-		this.method = method;
-		this.uri = uri;
-		this.exchangeTimeout = null;
+		this(httpClient, method, uri, null);
 	}
 
 	/**
-	 * Package private constructor for use until exchangeTimeout is removed.
+	 * Create an instance.
+	 * <p>If no executor is provided, the request will use an {@link Schedulers#boundedElastic() elastic scheduler}
+	 * for performing blocking I/O operations.
+	 * @param httpClient the client to perform the request with
+	 * @param method the HTTP method
+	 * @param uri the URI for the request
+	 * @param executor the executor to use
+	 * @since 6.2.13
 	 */
-	ReactorClientHttpRequest(HttpClient httpClient, HttpMethod method, URI uri, @Nullable Duration exchangeTimeout) {
+	public ReactorClientHttpRequest(HttpClient httpClient, HttpMethod method, URI uri, @Nullable Executor executor) {
 		this.httpClient = httpClient;
 		this.method = method;
 		this.uri = uri;
-		this.exchangeTimeout = exchangeTimeout;
+		this.executor = (executor != null) ? executor : Schedulers.boundedElastic()::schedule;
 	}
 
 
@@ -106,8 +110,7 @@ final class ReactorClientHttpRequest extends AbstractStreamingClientHttpRequest 
 							.responseConnection((response, conn) -> Mono.just(new ReactorClientHttpResponse(response, conn)))
 							.next();
 
-			ReactorClientHttpResponse clientResponse =
-					(this.exchangeTimeout != null ? mono.block(this.exchangeTimeout) : mono.block());
+			ReactorClientHttpResponse clientResponse = mono.block();
 
 			if (clientResponse == null) {
 				throw new IOException("HTTP exchange resulted in no result");
@@ -131,13 +134,10 @@ final class ReactorClientHttpRequest extends AbstractStreamingClientHttpRequest 
 			return Mono.empty();
 		}
 
-		AtomicReference<Executor> executorRef = new AtomicReference<>();
-
 		return outbound
-				.withConnection(connection -> executorRef.set(connection.channel().eventLoop()))
 				.send(FlowAdapters.toPublisher(new OutputStreamPublisher<>(
 						os -> body.writeTo(StreamUtils.nonClosing(os)), new ByteBufMapper(outbound),
-						executorRef.getAndSet(null), null)));
+						this.executor, null)));
 	}
 
 	static IOException convertException(RuntimeException ex) {

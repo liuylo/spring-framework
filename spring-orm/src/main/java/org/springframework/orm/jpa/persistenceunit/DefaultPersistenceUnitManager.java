@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,6 +27,8 @@ import java.util.Set;
 
 import javax.sql.DataSource;
 
+import jakarta.persistence.FetchType;
+import jakarta.persistence.PersistenceConfiguration;
 import jakarta.persistence.PersistenceException;
 import jakarta.persistence.SharedCacheMode;
 import jakarta.persistence.ValidationMode;
@@ -108,6 +110,8 @@ public class DefaultPersistenceUnitManager
 
 	private @Nullable String defaultPersistenceUnitName = ORIGINAL_DEFAULT_PERSISTENCE_UNIT_NAME;
 
+	private @Nullable PersistenceConfiguration persistenceConfiguration;
+
 	private @Nullable PersistenceManagedTypes managedTypes;
 
 	private String @Nullable [] packagesToScan;
@@ -119,6 +123,8 @@ public class DefaultPersistenceUnitManager
 	private @Nullable SharedCacheMode sharedCacheMode;
 
 	private @Nullable ValidationMode validationMode;
+
+	private @Nullable FetchType defaultToOneFetchType;
 
 	private DataSourceLookup dataSourceLookup = new JndiDataSourceLookup();
 
@@ -134,7 +140,7 @@ public class DefaultPersistenceUnitManager
 
 	private final Set<String> persistenceUnitInfoNames = new HashSet<>();
 
-	private final Map<String, PersistenceUnitInfo> persistenceUnitInfos = new HashMap<>();
+	private final Map<String, SpringPersistenceUnitInfo> persistenceUnitInfos = new HashMap<>();
 
 
 	/**
@@ -180,8 +186,18 @@ public class DefaultPersistenceUnitManager
 	}
 
 	/**
+	 * Set a JPA 3.2 {@link PersistenceConfiguration} to apply to the default
+	 * persistence unit. The contained configuration will be merged with the
+	 * common settings specified on this {@code DefaultPersistenceUnitManager}.
+	 * @since 7.0
+	 */
+	public void setPersistenceConfiguration(PersistenceConfiguration configuration) {
+		this.persistenceConfiguration = configuration;
+	}
+
+	/**
 	 * Set the {@link PersistenceManagedTypes} to use to build the list of managed types
-	 * as an alternative to entity scanning.
+	 * for the default persistence unit, as an alternative to entity scanning.
 	 * @param managedTypes the managed types
 	 * @since 6.0
 	 */
@@ -279,6 +295,17 @@ public class DefaultPersistenceUnitManager
 	}
 
 	/**
+	 * Specify the JPA 4.0 default fetch type for all of this manager's persistence
+	 * units, overriding any value in {@code persistence.xml} if set.
+	 * <p>This setting only applies against a JPA 4.0+ persistence provider.
+	 * Otherwise, it will be ignored.
+	 * @since 7.0.4
+	 */
+	public void setDefaultToOneFetchType(FetchType defaultToOneFetchType) {
+		this.defaultToOneFetchType = defaultToOneFetchType;
+	}
+
+	/**
 	 * Specify the JDBC DataSources that the JPA persistence provider is supposed
 	 * to use for accessing the database, resolving data source names in
 	 * {@code persistence.xml} against Spring-managed DataSources.
@@ -317,7 +344,7 @@ public class DefaultPersistenceUnitManager
 	 * persistence provider, resolving data source names in {@code persistence.xml}
 	 * against Spring-managed DataSource instances.
 	 */
-	public @Nullable DataSourceLookup getDataSourceLookup() {
+	public DataSourceLookup getDataSourceLookup() {
 		return this.dataSourceLookup;
 	}
 
@@ -462,6 +489,9 @@ public class DefaultPersistenceUnitManager
 			if (this.validationMode != null) {
 				pui.setValidationMode(this.validationMode);
 			}
+			if (this.defaultToOneFetchType != null) {
+				pui.setDefaultToOneFetchType(this.defaultToOneFetchType);
+			}
 
 			// Initialize persistence unit ClassLoader
 			if (this.loadTimeWeaver != null) {
@@ -492,7 +522,8 @@ public class DefaultPersistenceUnitManager
 	private List<SpringPersistenceUnitInfo> readPersistenceUnitInfos() {
 		List<SpringPersistenceUnitInfo> infos = new ArrayList<>(1);
 		String defaultName = this.defaultPersistenceUnitName;
-		boolean buildDefaultUnit = (this.managedTypes != null || this.packagesToScan != null || this.mappingResources != null);
+		boolean buildDefaultUnit = (this.persistenceConfiguration != null || this.managedTypes != null ||
+				this.packagesToScan != null || this.mappingResources != null);
 		boolean foundDefaultUnit = false;
 
 		PersistenceUnitReader reader = new PersistenceUnitReader(this.resourcePatternResolver, this.dataSourceLookup);
@@ -507,8 +538,9 @@ public class DefaultPersistenceUnitManager
 		if (buildDefaultUnit) {
 			if (foundDefaultUnit) {
 				if (logger.isWarnEnabled()) {
-					logger.warn("Found explicit default persistence unit with name '" + defaultName + "' in persistence.xml - " +
-							"overriding local default persistence unit settings ('managedTypes', 'packagesToScan' or 'mappingResources')");
+					logger.warn("Found explicit default persistence unit with name '" + defaultName +
+							"' in persistence.xml - overriding local default persistence unit settings " +
+							"(`persistenceConfiguration`, 'managedTypes', 'packagesToScan' or 'mappingResources')");
 				}
 			}
 			else {
@@ -523,33 +555,37 @@ public class DefaultPersistenceUnitManager
 	 * @see #setPackagesToScan
 	 */
 	private SpringPersistenceUnitInfo buildDefaultPersistenceUnitInfo() {
-		SpringPersistenceUnitInfo scannedUnit = new SpringPersistenceUnitInfo();
+		SpringPersistenceUnitInfo defaultUnit = new SpringPersistenceUnitInfo();
 		if (this.defaultPersistenceUnitName != null) {
-			scannedUnit.setPersistenceUnitName(this.defaultPersistenceUnitName);
+			defaultUnit.setPersistenceUnitName(this.defaultPersistenceUnitName);
 		}
-		scannedUnit.setExcludeUnlistedClasses(true);
+		defaultUnit.setExcludeUnlistedClasses(true);
+
+		if (this.persistenceConfiguration != null) {
+			defaultUnit.apply(this.persistenceConfiguration, this.dataSourceLookup);
+		}
 
 		if (this.managedTypes != null) {
-			applyManagedTypes(scannedUnit, this.managedTypes);
+			defaultUnit.apply(this.managedTypes);
 		}
 		else if (this.packagesToScan != null) {
 			PersistenceManagedTypesScanner scanner = new PersistenceManagedTypesScanner(
 					this.resourcePatternResolver, this.managedClassNameFilter);
-			applyManagedTypes(scannedUnit, scanner.scan(this.packagesToScan));
+			defaultUnit.apply(scanner.scan(this.packagesToScan));
 		}
 
 		if (this.mappingResources != null) {
 			for (String mappingFileName : this.mappingResources) {
-				scannedUnit.addMappingFileName(mappingFileName);
+				defaultUnit.addMappingFileName(mappingFileName);
 			}
 		}
 		else {
 			Resource ormXml = getOrmXmlForDefaultPersistenceUnit();
 			if (ormXml != null) {
-				scannedUnit.addMappingFileName(DEFAULT_ORM_XML_RESOURCE);
-				if (scannedUnit.getPersistenceUnitRootUrl() == null) {
+				defaultUnit.addMappingFileName(DEFAULT_ORM_XML_RESOURCE);
+				if (defaultUnit.getPersistenceUnitRootUrl() == null) {
 					try {
-						scannedUnit.setPersistenceUnitRootUrl(
+						defaultUnit.setPersistenceUnitRootUrl(
 								PersistenceUnitReader.determinePersistenceUnitRootUrl(ormXml));
 					}
 					catch (IOException ex) {
@@ -559,16 +595,7 @@ public class DefaultPersistenceUnitManager
 			}
 		}
 
-		return scannedUnit;
-	}
-
-	private void applyManagedTypes(SpringPersistenceUnitInfo scannedUnit, PersistenceManagedTypes managedTypes) {
-		managedTypes.getManagedClassNames().forEach(scannedUnit::addManagedClassName);
-		managedTypes.getManagedPackages().forEach(scannedUnit::addManagedPackage);
-		URL persistenceUnitRootUrl = managedTypes.getPersistenceUnitRootUrl();
-		if (scannedUnit.getPersistenceUnitRootUrl() == null && persistenceUnitRootUrl != null) {
-			scannedUnit.setPersistenceUnitRootUrl(persistenceUnitRootUrl);
-		}
+		return defaultUnit;
 	}
 
 	/**
@@ -620,26 +647,25 @@ public class DefaultPersistenceUnitManager
 
 
 	/**
-	 * Return the specified PersistenceUnitInfo from this manager's cache
-	 * of processed persistence units, keeping it in the cache (i.e. not
-	 * 'obtaining' it for use but rather just accessing it for post-processing).
+	 * Return the specified {@link MutablePersistenceUnitInfo} from this manager's cache
+	 * of processed persistence units, keeping it in the cache (i.e. not 'obtaining' it
+	 * for use but rather just accessing it for post-processing).
 	 * <p>This can be used in {@link #postProcessPersistenceUnitInfo} implementations,
 	 * detecting existing persistence units of the same name and potentially merging them.
 	 * @param persistenceUnitName the name of the desired persistence unit
 	 * @return the PersistenceUnitInfo in mutable form, or {@code null} if not available
 	 */
 	protected final @Nullable MutablePersistenceUnitInfo getPersistenceUnitInfo(String persistenceUnitName) {
-		PersistenceUnitInfo pui = this.persistenceUnitInfos.get(persistenceUnitName);
-		return (MutablePersistenceUnitInfo) pui;
+		return this.persistenceUnitInfos.get(persistenceUnitName);
 	}
 
 	/**
-	 * Hook method allowing subclasses to customize each PersistenceUnitInfo.
+	 * Hook method allowing subclasses to customize each {@link MutablePersistenceUnitInfo}.
 	 * <p>The default implementation delegates to all registered PersistenceUnitPostProcessors.
 	 * It is usually preferable to register further entity classes, jar files etc there
 	 * rather than in a subclass of this manager, to be able to reuse the post-processors.
-	 * @param pui the chosen PersistenceUnitInfo, as read from {@code persistence.xml}.
-	 * Passed in as MutablePersistenceUnitInfo.
+	 * @param pui the chosen persistence unit configuration, as read from
+	 * {@code persistence.xml}. Passed in as MutablePersistenceUnitInfo.
 	 * @see #setPersistenceUnitPostProcessors
 	 */
 	protected void postProcessPersistenceUnitInfo(MutablePersistenceUnitInfo pui) {
@@ -674,14 +700,14 @@ public class DefaultPersistenceUnitManager
 		if (this.persistenceUnitInfos.size() > 1 && this.defaultPersistenceUnitName != null) {
 			return obtainPersistenceUnitInfo(this.defaultPersistenceUnitName);
 		}
-		PersistenceUnitInfo pui = this.persistenceUnitInfos.values().iterator().next();
+		SpringPersistenceUnitInfo pui = this.persistenceUnitInfos.values().iterator().next();
 		this.persistenceUnitInfos.clear();
-		return pui;
+		return pui.asStandardPersistenceUnitInfo();
 	}
 
 	@Override
 	public PersistenceUnitInfo obtainPersistenceUnitInfo(String persistenceUnitName) {
-		PersistenceUnitInfo pui = this.persistenceUnitInfos.remove(persistenceUnitName);
+		SpringPersistenceUnitInfo pui = this.persistenceUnitInfos.remove(persistenceUnitName);
 		if (pui == null) {
 			if (!this.persistenceUnitInfoNames.contains(persistenceUnitName)) {
 				throw new IllegalArgumentException(
@@ -692,7 +718,7 @@ public class DefaultPersistenceUnitManager
 						"Persistence unit with name '" + persistenceUnitName + "' already obtained");
 			}
 		}
-		return pui;
+		return pui.asStandardPersistenceUnitInfo();
 	}
 
 }

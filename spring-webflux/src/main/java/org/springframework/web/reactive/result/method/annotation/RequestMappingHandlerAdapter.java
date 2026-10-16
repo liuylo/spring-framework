@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -314,7 +314,7 @@ public class RequestMappingHandlerAdapter
 					Throwable cause = exToExpose.getCause();
 					exToExpose = (cause != exToExpose ? cause : null);
 				}
-				Object[] arguments = new Object[exceptions.size() + 1];
+				@Nullable Object[] arguments = new Object[exceptions.size() + 1];
 				exceptions.toArray(arguments);  // efficient arraycopy call in ArrayList
 				arguments[arguments.length - 1] = handlerMethod;
 
@@ -362,8 +362,8 @@ public class RequestMappingHandlerAdapter
 		@Override
 		public boolean test(HandlerMethod handlerMethod) {
 			Class<?> returnType = handlerMethod.getReturnType().getParameterType();
-			return (this.adapterRegistry.getAdapter(returnType) == null
-					&& !KotlinDetector.isSuspendingFunction(handlerMethod.getMethod()));
+			return (this.adapterRegistry.getAdapter(returnType) == null &&
+					!KotlinDetector.isSuspendingFunction(handlerMethod.getMethod()));
 		}
 	}
 

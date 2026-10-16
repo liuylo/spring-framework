@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ import java.util.Objects;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Base {@link TypeReference} implementation that ensures consistent behaviour
+ * Base {@link TypeReference} implementation that ensures consistent behavior
  * for {@code equals()}, {@code hashCode()}, and {@code toString()} based on
  * the {@linkplain #getCanonicalName() canonical name}.
  *
@@ -79,7 +79,7 @@ public abstract class AbstractTypeReference implements TypeReference {
 
 	@Override
 	public int compareTo(TypeReference other) {
-		return this.getCanonicalName().compareToIgnoreCase(other.getCanonicalName());
+		return getCanonicalName().compareToIgnoreCase(other.getCanonicalName());
 	}
 
 	@Override

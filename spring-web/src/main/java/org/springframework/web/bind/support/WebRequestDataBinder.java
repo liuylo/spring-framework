@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,15 +45,15 @@ import org.springframework.web.multipart.support.StandardServletPartUtils;
  * external clients. Therefore the design and use of data binding should be considered
  * carefully with regard to security. For more details, please refer to the dedicated
  * sections on data binding for
- * <a href="https://docs.spring.io/spring-framework/docs/current/reference/html/web.html#mvc-ann-initbinder-model-design">Spring Web MVC</a> and
- * <a href="https://docs.spring.io/spring-framework/docs/current/reference/html/web-reactive.html#webflux-ann-initbinder-model-design">Spring WebFlux</a>
+ * <a href="https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-data-binding.html#mvc-data-binding-design">Spring Web MVC</a> and
+ * <a href="https://docs.spring.io/spring-framework/reference/web/webflux/data-binding.html#webflux-data-binding-design">Spring WebFlux</a>
  * in the reference manual.
  *
  * <p>See the DataBinder/WebDataBinder superclasses for customization options,
  * which include specifying allowed/required fields, and registering custom
  * property editors.
  *
- * <p>Can also used for manual data binding in custom web controllers or interceptors
+ * <p>Can also be used for manual data binding in custom web controllers or interceptors
  * that build on Spring's {@link org.springframework.web.context.request.WebRequest}
  * abstraction: for example, in a {@link org.springframework.web.context.request.WebRequestInterceptor}
  * implementation. Simply instantiate a WebRequestDataBinder for each binding
@@ -68,7 +68,7 @@ import org.springframework.web.multipart.support.StandardServletPartUtils;
  * // trigger actual binding of request parameters
  * binder.bind(request);
  * // optionally evaluate binding errors
- * Errors errors = binder.getErrors();
+ * BindingResult bindingResult = binder.getBindingResult();
  * ...</pre>
  *
  * @author Juergen Hoeller

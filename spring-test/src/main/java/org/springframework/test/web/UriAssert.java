@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,7 +56,7 @@ public class UriAssert extends AbstractStringAssert<UriAssert> {
 	 * @param uriVars the values to replace the URI template variables
 	 * @see UriComponentsBuilder#buildAndExpand(Object...)
 	 */
-	public UriAssert isEqualToTemplate(String uriTemplate, Object... uriVars) {
+	public UriAssert isEqualToTemplate(String uriTemplate, @Nullable Object... uriVars) {
 		String uri = buildUri(uriTemplate, uriVars);
 		return isEqualTo(uri);
 	}
@@ -81,7 +81,7 @@ public class UriAssert extends AbstractStringAssert<UriAssert> {
 	}
 
 
-	private String buildUri(String uriTemplate, Object... uriVars) {
+	private String buildUri(String uriTemplate, @Nullable Object... uriVars) {
 		try {
 			return UriComponentsBuilder.fromUriString(uriTemplate)
 					.buildAndExpand(uriVars).encode().toUriString();

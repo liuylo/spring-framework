@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -91,13 +91,13 @@ public abstract class AbstractIdentityColumnMaxValueIncrementer extends Abstract
 			* are performed on the same connection (otherwise we can't be sure that @@identity
 			* returns the correct value)
 			*/
-			Connection con = DataSourceUtils.getConnection(getDataSource());
+			DataSource dataSource = obtainDataSource();
+			Connection con = DataSourceUtils.getConnection(dataSource);
 			Statement stmt = null;
 			try {
 				stmt = con.createStatement();
-				DataSourceUtils.applyTransactionTimeout(stmt, getDataSource());
-				this.valueCache = new long[getCacheSize()];
-				this.nextValueIndex = 0;
+				DataSourceUtils.applyTransactionTimeout(stmt, dataSource);
+				long[] newValues = new long[getCacheSize()];
 				for (int i = 0; i < getCacheSize(); i++) {
 					stmt.executeUpdate(getIncrementStatement());
 					ResultSet rs = stmt.executeQuery(getIdentityStatement());
@@ -105,20 +105,23 @@ public abstract class AbstractIdentityColumnMaxValueIncrementer extends Abstract
 						if (!rs.next()) {
 							throw new DataAccessResourceFailureException("Identity statement failed after inserting");
 						}
-						this.valueCache[i] = rs.getLong(1);
+						newValues[i] = rs.getLong(1);
 					}
 					finally {
 						JdbcUtils.closeResultSet(rs);
 					}
 				}
-				stmt.executeUpdate(getDeleteStatement(this.valueCache));
+				stmt.executeUpdate(getDeleteStatement(newValues));
+				// Only expose the new values once the entire range has been obtained
+				this.valueCache = newValues;
+				this.nextValueIndex = 0;
 			}
 			catch (SQLException ex) {
 				throw new DataAccessResourceFailureException("Could not increment identity", ex);
 			}
 			finally {
 				JdbcUtils.closeStatement(stmt);
-				DataSourceUtils.releaseConnection(con, getDataSource());
+				DataSourceUtils.releaseConnection(con, dataSource);
 			}
 		}
 		Assert.state(this.valueCache != null, "The cache of values can't be null");

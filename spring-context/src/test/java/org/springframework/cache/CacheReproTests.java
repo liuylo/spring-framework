@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,6 +56,7 @@ import static org.mockito.Mockito.verify;
  * @author Phillip Webb
  * @author Juergen Hoeller
  * @author Stephane Nicoll
+ * @author Sam Brannen
  */
 class CacheReproTests {
 
@@ -312,7 +313,7 @@ class CacheReproTests {
 		assertThat(bean.findById("tb1").collectList().block()).isEqualTo(tb);
 		assertThat(cache.get("tb1").get()).isEqualTo(tb);
 
-		bean.clear().blockLast();
+		assertThat(bean.clear().collectList().block()).containsExactly(1, 2, 3);
 		List<TestBean> tb2 = bean.findById("tb1").collectList().block();
 		assertThat(tb2).isNotEmpty();
 		assertThat(tb2).isNotEqualTo(tb);
@@ -705,9 +706,9 @@ class CacheReproTests {
 			return Flux.fromIterable(item);
 		}
 
-		@CacheEvict(cacheNames = "itemCache", allEntries = true, condition = "#result > 0")
+		@CacheEvict(cacheNames = "itemCache", allEntries = true, condition = "#result == {1, 2, 3}")
 		public Flux<Integer> clear() {
-			return Flux.just(1);
+			return Flux.just(1, 2, 3);
 		}
 	}
 

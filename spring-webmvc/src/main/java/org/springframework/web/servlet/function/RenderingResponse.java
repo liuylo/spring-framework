@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,7 +49,8 @@ public interface RenderingResponse extends ServerResponse {
 	// Builder
 
 	/**
-	 * Create a builder with the template name, status code, headers and model of the given response.
+	 * Create a builder with the template name, status code, headers, cookies,
+	 * and model of the given response.
 	 * @param other the response to copy the values from
 	 * @return the created builder
 	 */

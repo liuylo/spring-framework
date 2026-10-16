@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -108,7 +108,6 @@ class SharedEntityManagerCreatorTests {
 		Query targetQuery = mock();
 		given(emf.createEntityManager()).willReturn(targetEm);
 		given(targetEm.createQuery("x")).willReturn(targetQuery);
-		given(targetEm.isOpen()).willReturn(true);
 		given((Query) targetQuery.unwrap(targetQuery.getClass())).willReturn(targetQuery);
 
 		EntityManager em = SharedEntityManagerCreator.createSharedEntityManager(emf);
@@ -129,7 +128,6 @@ class SharedEntityManagerCreatorTests {
 		Query targetQuery = mock();
 		given(emf.createEntityManager()).willReturn(targetEm);
 		given(targetEm.createQuery("x")).willReturn(targetQuery);
-		given(targetEm.isOpen()).willReturn(true);
 		given((Query) targetQuery.unwrap(targetQuery.getClass())).willReturn(targetQuery);
 
 		EntityManager em = SharedEntityManagerCreator.createSharedEntityManager(emf);
@@ -150,7 +148,6 @@ class SharedEntityManagerCreatorTests {
 		Query targetQuery = mock();
 		given(emf.createEntityManager()).willReturn(targetEm);
 		given(targetEm.createQuery("x")).willReturn(targetQuery);
-		given(targetEm.isOpen()).willReturn(true);
 		given((Query) targetQuery.unwrap(targetQuery.getClass())).willReturn(targetQuery);
 
 		EntityManager em = SharedEntityManagerCreator.createSharedEntityManager(emf);
@@ -171,7 +168,6 @@ class SharedEntityManagerCreatorTests {
 		Query targetQuery = mock();
 		given(emf.createEntityManager()).willReturn(targetEm);
 		given(targetEm.createQuery("x")).willReturn(targetQuery);
-		given(targetEm.isOpen()).willReturn(true);
 		given((Query) targetQuery.unwrap(targetQuery.getClass())).willReturn(targetQuery);
 
 		EntityManager em = SharedEntityManagerCreator.createSharedEntityManager(emf);
@@ -194,7 +190,6 @@ class SharedEntityManagerCreatorTests {
 		given(targetEm.createStoredProcedureQuery("x")).willReturn(targetQuery);
 		willReturn("y").given(targetQuery).getOutputParameterValue(0);
 		willReturn("z").given(targetQuery).getOutputParameterValue(2);
-		given(targetEm.isOpen()).willReturn(true);
 
 		EntityManager em = SharedEntityManagerCreator.createSharedEntityManager(emf);
 		StoredProcedureQuery spq = em.createStoredProcedureQuery("x");
@@ -225,7 +220,6 @@ class SharedEntityManagerCreatorTests {
 		given(targetEm.createStoredProcedureQuery("x")).willReturn(targetQuery);
 		willReturn("y").given(targetQuery).getOutputParameterValue("a");
 		willReturn("z").given(targetQuery).getOutputParameterValue("c");
-		given(targetEm.isOpen()).willReturn(true);
 
 		EntityManager em = SharedEntityManagerCreator.createSharedEntityManager(emf);
 		StoredProcedureQuery spq = em.createStoredProcedureQuery("x");

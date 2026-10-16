@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,6 +43,7 @@ import org.springframework.aop.support.MethodMatchers;
 import org.springframework.aop.support.StaticMethodMatcher;
 import org.springframework.core.DefaultParameterNameDiscoverer;
 import org.springframework.core.ParameterNameDiscoverer;
+import org.springframework.lang.Contract;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
 import org.springframework.util.CollectionUtils;
@@ -258,10 +259,11 @@ public abstract class AbstractAspectJAdvice implements Advice, AspectJPrecedence
 	 * or in an advice annotation.
 	 * @param argumentNames list of argument names
 	 */
-	public void setArgumentNamesFromStringArray(String... argumentNames) {
+	public void setArgumentNamesFromStringArray(@Nullable String... argumentNames) {
 		this.argumentNames = new String[argumentNames.length];
 		for (int i = 0; i < argumentNames.length; i++) {
-			this.argumentNames[i] = argumentNames[i].strip();
+			String argumentName = argumentNames[i];
+			this.argumentNames[i] = argumentName != null ? argumentName.strip() : null;
 			if (!isVariableName(this.argumentNames[i])) {
 				throw new IllegalArgumentException(
 						"'argumentNames' property of AbstractAspectJAdvice contains an argument name '" +
@@ -270,14 +272,18 @@ public abstract class AbstractAspectJAdvice implements Advice, AspectJPrecedence
 		}
 		if (this.aspectJAdviceMethod.getParameterCount() == this.argumentNames.length + 1) {
 			// May need to add implicit join point arg name...
-			Class<?> firstArgType = this.aspectJAdviceMethod.getParameterTypes()[0];
-			if (firstArgType == JoinPoint.class ||
-					firstArgType == ProceedingJoinPoint.class ||
-					firstArgType == JoinPoint.StaticPart.class) {
-				String[] oldNames = this.argumentNames;
+			for (int i = 0; i < this.aspectJAdviceMethod.getParameterCount(); i++) {
+				Class<?> argType = this.aspectJAdviceMethod.getParameterTypes()[i];
+				if (argType == JoinPoint.class ||
+						argType == ProceedingJoinPoint.class ||
+						argType == JoinPoint.StaticPart.class) {
+					@Nullable String[] oldNames = this.argumentNames;
 				this.argumentNames = new String[oldNames.length + 1];
-				this.argumentNames[0] = "THIS_JOIN_POINT";
-				System.arraycopy(oldNames, 0, this.argumentNames, 1, oldNames.length);
+				System.arraycopy(oldNames, 0, this.argumentNames, 0, i);
+					this.argumentNames[i] = "THIS_JOIN_POINT";
+					System.arraycopy(oldNames, i, this.argumentNames, i + 1, oldNames.length - i);
+					break;
+				}
 			}
 		}
 	}
@@ -346,7 +352,8 @@ public abstract class AbstractAspectJAdvice implements Advice, AspectJPrecedence
 		return this.discoveredThrowingType;
 	}
 
-	private static boolean isVariableName(String name) {
+	@Contract("null -> false")
+	private static boolean isVariableName(@Nullable String name) {
 		return AspectJProxyUtils.isVariableName(name);
 	}
 
@@ -456,6 +463,7 @@ public abstract class AbstractAspectJAdvice implements Advice, AspectJPrecedence
 		return discoverer;
 	}
 
+	@SuppressWarnings("NullAway") // Dataflow analysis limitation
 	private void bindExplicitArguments(int numArgumentsLeftToBind) {
 		Assert.state(this.argumentNames != null, "No argument names available");
 		this.argumentBindings = new HashMap<>();
@@ -609,28 +617,35 @@ public abstract class AbstractAspectJAdvice implements Advice, AspectJPrecedence
 	 * @return the invocation result
 	 * @throws Throwable in case of invocation failure
 	 */
-	protected Object invokeAdviceMethod(
-			@Nullable JoinPointMatch jpMatch, @Nullable Object returnValue, @Nullable Throwable ex)
-			throws Throwable {
+	protected @Nullable Object invokeAdviceMethod(@Nullable JoinPointMatch jpMatch,
+			@Nullable Object returnValue, @Nullable Throwable ex) throws Throwable {
 
 		return invokeAdviceMethodWithGivenArgs(argBinding(getJoinPoint(), jpMatch, returnValue, ex));
 	}
 
 	// As above, but in this case we are given the join point.
-	protected Object invokeAdviceMethod(JoinPoint jp, @Nullable JoinPointMatch jpMatch,
+	protected @Nullable Object invokeAdviceMethod(JoinPoint jp, @Nullable JoinPointMatch jpMatch,
 			@Nullable Object returnValue, @Nullable Throwable t) throws Throwable {
 
 		return invokeAdviceMethodWithGivenArgs(argBinding(jp, jpMatch, returnValue, t));
 	}
 
-	protected Object invokeAdviceMethodWithGivenArgs(Object[] args) throws Throwable {
-		Object[] actualArgs = args;
+	protected @Nullable Object invokeAdviceMethodWithGivenArgs(@Nullable Object[] args) throws Throwable {
+		@Nullable Object[] actualArgs = args;
 		if (this.aspectJAdviceMethod.getParameterCount() == 0) {
 			actualArgs = null;
 		}
+		Object aspectInstance = this.aspectInstanceFactory.getAspectInstance();
+		if (aspectInstance.equals(null)) {
+			// Possibly a NullBean -> simply proceed if necessary.
+			if (getJoinPoint() instanceof ProceedingJoinPoint pjp) {
+				return pjp.proceed();
+			}
+			return null;
+		}
 		try {
 			ReflectionUtils.makeAccessible(this.aspectJAdviceMethod);
-			return this.aspectJAdviceMethod.invoke(this.aspectInstanceFactory.getAspectInstance(), actualArgs);
+			return this.aspectJAdviceMethod.invoke(aspectInstance, actualArgs);
 		}
 		catch (IllegalArgumentException ex) {
 			throw new AopInvocationException("Mismatch on arguments to advice method [" +

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2021 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -146,8 +146,9 @@ public interface ServerHttpRequest extends HttpRequest, ReactiveHttpInputMessage
 		 * contextPath} and it must match the start of the path of the URI of
 		 * the request. That means changing the contextPath, implies also
 		 * changing the path via {@link #path(String)}.
+		 * <p>Use {@code null} to clear the context path.
 		 */
-		Builder contextPath(String contextPath);
+		Builder contextPath(@Nullable String contextPath);
 
 		/**
 		 * Set or override the specified header values under the given name.
@@ -183,6 +184,12 @@ public interface ServerHttpRequest extends HttpRequest, ReactiveHttpInputMessage
 		 * @since 5.3
 		 */
 		Builder remoteAddress(InetSocketAddress remoteAddress);
+
+		/**
+		 * Set the address of the local client.
+		 * @since 7.0
+		 */
+		Builder localAddress(InetSocketAddress localAddress);
 
 		/**
 		 * Build a {@link ServerHttpRequest} decorator with the mutated properties.

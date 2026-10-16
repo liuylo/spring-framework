@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,6 +34,9 @@ import org.junit.jupiter.api.Test;
 
 import org.springframework.core.annotation.MergedAnnotations.Search;
 import org.springframework.core.annotation.MergedAnnotations.SearchStrategy;
+import org.springframework.core.annotation.subpackage.PackagePrivateMethodOverridingSubclass;
+import org.springframework.core.annotation.subpackage.PackagePrivateMethodSuperclass;
+import org.springframework.core.annotation.subpackage.PublicMethodOverridingSubclass;
 import org.springframework.util.ClassUtils;
 import org.springframework.util.ReflectionUtils;
 
@@ -44,6 +47,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * @author Phillip Webb
  * @author Sam Brannen
+ * @author Chengang Guan
  */
 class AnnotationsScannerTests {
 
@@ -327,6 +331,18 @@ class AnnotationsScannerTests {
 	}
 
 	@Test
+	void superclassStrategyOnMethodWithStaticMethodDoesNotScanSuperclassStaticMethod() {
+		Method source = methodFrom(StaticMethodChild.class);
+		assertThat(scan(source, SearchStrategy.SUPERCLASS)).isEmpty();
+	}
+
+	@Test
+	void superclassStrategyOnAnnotatedStaticMethodScansOnlyDeclaredAnnotations() {
+		Method source = methodFrom(AnnotatedStaticMethodChild.class);
+		assertThat(scan(source, SearchStrategy.SUPERCLASS)).containsExactly("0:TestAnnotation3");
+	}
+
+	@Test
 	void typeHierarchyStrategyOnMethodWhenNotAnnotatedScansNone() {
 		Method source = methodFrom(WithNoAnnotations.class);
 		assertThat(scan(source, SearchStrategy.TYPE_HIERARCHY)).isEmpty();
@@ -464,6 +480,36 @@ class AnnotationsScannerTests {
 	}
 
 	@Test
+	void typeHierarchyStrategyOnMethodWithStaticMethodDoesNotScanSuperclassOrInterfaceStaticMethod() {
+		Method source = methodFrom(StaticMethodChild.class);
+		assertThat(scan(source, SearchStrategy.TYPE_HIERARCHY)).isEmpty();
+	}
+
+	@Test
+	void typeHierarchyStrategyOnAnnotatedStaticMethodScansOnlyDeclaredAnnotations() {
+		Method source = methodFrom(AnnotatedStaticMethodChild.class);
+		assertThat(scan(source, SearchStrategy.TYPE_HIERARCHY)).containsExactly("0:TestAnnotation3");
+	}
+
+	@Test  // gh-37408
+	void typeHierarchyStrategyOnMethodDoesNotScanPackagePrivateMethodInDifferentPackage() {
+		Method source = ReflectionUtils.findMethod(PackagePrivateMethodChild.class, "process", String.class);
+		assertThat(scan(source, SearchStrategy.TYPE_HIERARCHY)).isEmpty();
+	}
+
+	@Test  // gh-37408
+	void typeHierarchyStrategyOnMethodScansPackagePrivateMethodInDifferentPackageOverriddenTransitively() {
+		Method source = ReflectionUtils.findMethod(PublicMethodOverridingChild.class, "process", String.class);
+		assertThat(scan(source, SearchStrategy.TYPE_HIERARCHY)).containsExactly("1:Marker");
+	}
+
+	@Test  // gh-37408
+	void typeHierarchyStrategyOnMethodDoesNotScanPackagePrivateMethodInDifferentPackageViaPackagePrivateOverride() {
+		Method source = ReflectionUtils.findMethod(PackagePrivateMethodOverridingChild.class, "process", String.class);
+		assertThat(scan(source, SearchStrategy.TYPE_HIERARCHY)).isEmpty();
+	}
+
+	@Test
 	void scanWhenProcessorReturnsFromDoWithAggregateExitsEarly() {
 		String result = scan(this, WithSingleSuperclass.class, SearchStrategy.TYPE_HIERARCHY,
 				new AnnotationsProcessor<Object, String>() {
@@ -475,7 +521,7 @@ class AnnotationsScannerTests {
 
 					@Override
 					public String doWithAnnotations(Object context, int aggregateIndex,
-							@Nullable Object source, Annotation[] annotations) {
+							@Nullable Object source, @Nullable Annotation[] annotations) {
 						throw new IllegalStateException("Should not call");
 					}
 
@@ -502,7 +548,7 @@ class AnnotationsScannerTests {
 
 					@Override
 					public String doWithAnnotations(Object context, int aggregateIndex,
-							@Nullable Object source, Annotation[] annotations) {
+							@Nullable Object source, @Nullable Annotation[] annotations) {
 						return "K";
 					}
 
@@ -838,6 +884,58 @@ class AnnotationsScannerTests {
 
 		@TestAnnotation2
 		void method(T argument);
+	}
+
+	static class StaticMethodSuperClass {
+
+		@TestAnnotation1
+		public static void method() {
+		}
+	}
+
+	interface StaticMethodInterface {
+
+		@TestAnnotation2
+		static void method() {
+		}
+	}
+
+	static class StaticMethodChild
+			extends StaticMethodSuperClass implements StaticMethodInterface {
+
+		public static void method() {
+		}
+	}
+
+	static class AnnotatedStaticMethodChild
+			extends StaticMethodSuperClass implements StaticMethodInterface {
+
+		@TestAnnotation3
+		public static void method() {
+		}
+	}
+
+	static class PackagePrivateMethodChild extends PackagePrivateMethodSuperclass {
+
+		// Does not override PackagePrivateMethodSuperclass.process(String).
+		public void process(String value) {
+		}
+	}
+
+	static class PublicMethodOverridingChild extends PublicMethodOverridingSubclass {
+
+		// Overrides PackagePrivateMethodSuperclass.process(String) transitively.
+		@Override
+		public void process(String value) {
+		}
+	}
+
+	static class PackagePrivateMethodOverridingChild extends PackagePrivateMethodOverridingSubclass {
+
+		// Overrides neither PackagePrivateMethodOverridingSubclass.process(String)
+		// nor PackagePrivateMethodSuperclass.process(String).
+		public void process(String value) {
+		}
 	}
 
 }

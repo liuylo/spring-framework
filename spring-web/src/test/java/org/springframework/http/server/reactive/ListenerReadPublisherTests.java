@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,7 +56,7 @@ class ListenerReadPublisherTests {
 	}
 
 	@Test // SPR-17410
-	public void discardDataOnError() {
+	void discardDataOnError() {
 
 		this.subscriber.getSubscription().request(2);
 		this.publisher.onDataAvailable();
@@ -67,7 +67,7 @@ class ListenerReadPublisherTests {
 	}
 
 	@Test // SPR-17410
-	public void discardDataOnCancel() {
+	void discardDataOnCancel() {
 
 		this.subscriber.getSubscription().request(2);
 		this.subscriber.setCancelOnNext(true);

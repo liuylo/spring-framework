@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ import org.springframework.util.ClassUtils;
  * applying the mapping and mirroring rules of an {@link AnnotationTypeMapping}.
  *
  * <p>Root attribute values are extracted from a source object using a supplied
- * {@code BiFunction}. This allows various different annotation models to be
+ * {@link ValueExtractor}. This allows various different annotation models to be
  * supported by the same class. For example, the attributes source might be an
  * actual {@link Annotation} instance where methods on the annotation instance
  * are {@linkplain AnnotationUtils#invokeAnnotationMethod(Method, Object) invoked}
@@ -199,7 +199,7 @@ final class TypeMappedAnnotation<A extends Annotation> extends AbstractMergedAnn
 	@Override
 	public boolean hasDefaultValue(String attributeName) {
 		int attributeIndex = getAttributeIndex(attributeName, true);
-		Object value = getValue(attributeIndex, true, false);
+		Object value = getValue(attributeIndex, false);
 		return (value == null || this.mapping.isEquivalentToDefaultValue(attributeIndex, value, this.valueExtractor));
 	}
 
@@ -269,8 +269,22 @@ final class TypeMappedAnnotation<A extends Annotation> extends AbstractMergedAnn
 		AttributeMethods attributes = this.mapping.getAttributes();
 		for (int i = 0; i < attributes.size(); i++) {
 			Method attribute = attributes.get(i);
-			Object value = (isFiltered(attribute.getName()) ? null :
-					getValue(i, getTypeForMapOptions(attribute, adaptations)));
+			if (isFiltered(attribute.getName())) {
+				continue;
+			}
+			Object value;
+			try {
+				value = getValue(i, getTypeForMapOptions(attribute, adaptations));
+			}
+			catch (Throwable ex) {
+				// If the value for the current annotation attribute cannot be resolved
+				// (for example, a class attribute referencing a type that is absent from
+				// the classpath), store the exception as the value and skip the "adapt"
+				// step. This allows us to track the exception internally and only throw it
+				// if the user actually requests the value via the AnnotationAttributes API.
+				map.put(attribute.getName(), ex);
+				continue;
+			}
 			if (value != null) {
 				map.put(attribute.getName(),
 						adaptValueForMapOptions(attribute, value, map.getClass(), factory, adaptations));
@@ -340,8 +354,7 @@ final class TypeMappedAnnotation<A extends Annotation> extends AbstractMergedAnn
 
 	/**
 	 * Determine if the supplied annotation has not already been synthesized
-	 * <strong>and</strong> whether the mapped annotation is a composed annotation
-	 * that needs to have its attributes merged or the mapped annotation is
+	 * <strong>and</strong> whether the mapped annotation is
 	 * {@linkplain AnnotationTypeMapping#isSynthesizable() synthesizable} in general.
 	 * @param annotation the annotation to check
 	 * @since 5.3.22
@@ -350,11 +363,6 @@ final class TypeMappedAnnotation<A extends Annotation> extends AbstractMergedAnn
 		// Already synthesized?
 		if (AnnotationUtils.isSynthesizedAnnotation(annotation)) {
 			return false;
-		}
-		// Is this a mapped annotation for a composed annotation, and are there
-		// annotation attributes (mirrors) that need to be merged?
-		if (getDistance() > 0 && this.resolvedMirrors.length > 0) {
-			return true;
 		}
 		// Is the mapped annotation itself synthesizable?
 		return this.mapping.isSynthesizable();
@@ -369,28 +377,25 @@ final class TypeMappedAnnotation<A extends Annotation> extends AbstractMergedAnn
 	private Object getRequiredValue(int attributeIndex, String attributeName) {
 		Object value = getValue(attributeIndex, Object.class);
 		if (value == null) {
-			throw new NoSuchElementException("No element at attribute index "
-					+ attributeIndex + " for name " + attributeName);
+			throw new NoSuchElementException("No element at attribute index " +
+					attributeIndex + " for name " + attributeName);
 		}
 		return value;
 	}
 
 	private <T> @Nullable T getValue(int attributeIndex, Class<T> type) {
 		Method attribute = this.mapping.getAttributes().get(attributeIndex);
-		Object value = getValue(attributeIndex, true, false);
+		Object value = getValue(attributeIndex, false);
 		if (value == null) {
 			value = attribute.getDefaultValue();
 		}
 		return adapt(attribute, value, type);
 	}
 
-	private @Nullable Object getValue(int attributeIndex, boolean useConventionMapping, boolean forMirrorResolution) {
+	private @Nullable Object getValue(int attributeIndex, boolean forMirrorResolution) {
 		AnnotationTypeMapping mapping = this.mapping;
 		if (this.useMergedValues) {
 			int mappedIndex = this.mapping.getAliasMapping(attributeIndex);
-			if (mappedIndex == -1 && useConventionMapping) {
-				mappedIndex = this.mapping.getConventionMapping(attributeIndex);
-			}
 			if (mappedIndex != -1) {
 				mapping = mapping.getRoot();
 				attributeIndex = mappedIndex;
@@ -425,8 +430,7 @@ final class TypeMappedAnnotation<A extends Annotation> extends AbstractMergedAnn
 
 	private @Nullable Object getValueForMirrorResolution(Method attribute, @Nullable Object annotation) {
 		int attributeIndex = this.mapping.getAttributes().indexOf(attribute);
-		boolean valueAttribute = VALUE.equals(attribute.getName());
-		return getValue(attributeIndex, !valueAttribute, true);
+		return getValue(attributeIndex, true);
 	}
 
 	@SuppressWarnings("unchecked")
@@ -440,7 +444,12 @@ final class TypeMappedAnnotation<A extends Annotation> extends AbstractMergedAnn
 			value = clazz.getName();
 		}
 		else if (value instanceof String str && type == Class.class) {
-			value = ClassUtils.resolveClassName(str, getClassLoader());
+			try {
+				value = ClassUtils.forName(str, getClassLoader());
+			}
+			catch (ClassNotFoundException | LinkageError ex) {
+				throw new TypeNotPresentException(str, ex);
+			}
 		}
 		else if (value instanceof Class<?>[] classes && type == String[].class) {
 			String[] names = new String[classes.length];
@@ -451,8 +460,14 @@ final class TypeMappedAnnotation<A extends Annotation> extends AbstractMergedAnn
 		}
 		else if (value instanceof String[] names && type == Class[].class) {
 			Class<?>[] classes = new Class<?>[names.length];
+			ClassLoader classLoader = getClassLoader();
 			for (int i = 0; i < names.length; i++) {
-				classes[i] = ClassUtils.resolveClassName(names[i], getClassLoader());
+				try {
+					classes[i] = ClassUtils.forName(names[i], classLoader);
+				}
+				catch (ClassNotFoundException | LinkageError ex) {
+					throw new TypeNotPresentException(names[i], ex);
+				}
 			}
 			value = classes;
 		}
@@ -469,7 +484,7 @@ final class TypeMappedAnnotation<A extends Annotation> extends AbstractMergedAnn
 		}
 		if (!type.isInstance(value)) {
 			throw new IllegalArgumentException("Unable to adapt value of type " +
-					value.getClass().getName() + " to " + type.getName());
+					ClassUtils.getCanonicalName(value.getClass()) + " to " + ClassUtils.getCanonicalName(type));
 		}
 		return (T) value;
 	}
@@ -478,7 +493,9 @@ final class TypeMappedAnnotation<A extends Annotation> extends AbstractMergedAnn
 	private Object adaptForAttribute(Method attribute, Object value) {
 		Class<?> attributeType = ClassUtils.resolvePrimitiveIfNecessary(attribute.getReturnType());
 		if (attributeType.isArray() && !value.getClass().isArray()) {
-			Object array = Array.newInstance(value.getClass(), 1);
+			Object array = ClassUtils.isAssignable(attributeType.getComponentType(), value.getClass()) ?
+					Array.newInstance(attributeType.getComponentType(), 1) :
+					Array.newInstance(value.getClass(), 1);
 			Array.set(array, 0, value);
 			return adaptForAttribute(attribute, array);
 		}
@@ -504,8 +521,8 @@ final class TypeMappedAnnotation<A extends Annotation> extends AbstractMergedAnn
 		}
 		if (!attributeType.isInstance(value)) {
 			throw new IllegalStateException("Attribute '" + attribute.getName() +
-					"' in annotation " + getType().getName() + " should be compatible with " +
-					attributeType.getName() + " but a " + value.getClass().getName() +
+					"' in annotation " + ClassUtils.getCanonicalName(getType()) + " should be compatible with " +
+					ClassUtils.getCanonicalName(attributeType) + " but a " + ClassUtils.getCanonicalName(value.getClass()) +
 					" value was returned");
 		}
 		return value;
@@ -562,7 +579,7 @@ final class TypeMappedAnnotation<A extends Annotation> extends AbstractMergedAnn
 		int attributeIndex = (isFiltered(attributeName) ? -1 : this.mapping.getAttributes().indexOf(attributeName));
 		if (attributeIndex == -1 && required) {
 			throw new NoSuchElementException("No attribute named '" + attributeName +
-					"' present in merged annotation " + getType().getName());
+					"' present in merged annotation " + ClassUtils.getCanonicalName(getType()));
 		}
 		return attributeIndex;
 	}
@@ -583,7 +600,7 @@ final class TypeMappedAnnotation<A extends Annotation> extends AbstractMergedAnn
 				return clazz.getClassLoader();
 			}
 			if (this.source instanceof Member member) {
-				member.getDeclaringClass().getClassLoader();
+				return member.getDeclaringClass().getClassLoader();
 			}
 		}
 		return null;
@@ -639,9 +656,10 @@ final class TypeMappedAnnotation<A extends Annotation> extends AbstractMergedAnn
 		catch (Exception ex) {
 			AnnotationUtils.rethrowAnnotationConfigurationException(ex);
 			if (logger.isEnabled()) {
-				String type = mapping.getAnnotationType().getName();
+				String type = ClassUtils.getCanonicalName(mapping.getAnnotationType());
 				String item = (mapping.getDistance() == 0 ? "annotation " + type :
-						"meta-annotation " + type + " from " + mapping.getRoot().getAnnotationType().getName());
+						"meta-annotation " + type + " from " +
+							ClassUtils.getCanonicalName(mapping.getRoot().getAnnotationType()));
 				logger.log("Failed to introspect " + item, source, ex);
 			}
 			return null;

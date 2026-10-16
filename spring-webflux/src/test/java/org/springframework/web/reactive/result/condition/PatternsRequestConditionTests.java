@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -114,7 +114,7 @@ class PatternsRequestConditionTests {
 	}
 
 	@Test // gh-22543
-	public void matchWithEmptyPatterns() {
+	void matchWithEmptyPatterns() {
 		PatternsRequestCondition condition = new PatternsRequestCondition();
 		assertThat(condition.getMatchingCondition(MockServerWebExchange.from(get("")))).isNotNull();
 		assertThat(condition.getMatchingCondition(MockServerWebExchange.from(get("/anything")))).isNull();

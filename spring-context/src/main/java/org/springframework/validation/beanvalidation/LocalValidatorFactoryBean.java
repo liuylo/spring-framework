@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,6 +53,7 @@ import org.springframework.context.MessageSource;
 import org.springframework.core.ParameterNameDiscoverer;
 import org.springframework.core.io.Resource;
 import org.springframework.util.Assert;
+import org.springframework.util.ClassUtils;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.ReflectionUtils;
 
@@ -242,7 +243,7 @@ public class LocalValidatorFactoryBean extends SpringValidatorAdapter
 
 
 	@Override
-	@SuppressWarnings({"rawtypes", "unchecked", "NullAway"}) // TODO NullAway bug?
+	@SuppressWarnings({"rawtypes", "unchecked"})
 	public void afterPropertiesSet() {
 		Configuration<?> configuration;
 		if (this.providerClass != null) {
@@ -260,14 +261,15 @@ public class LocalValidatorFactoryBean extends SpringValidatorAdapter
 			configuration = bootstrap.configure();
 		}
 
-		// Try Hibernate Validator 5.2's externalClassLoader(ClassLoader) method
+		// Try Hibernate Validator's externalClassLoader(ClassLoader) method
 		if (this.applicationContext != null) {
 			try {
 				Method eclMethod = configuration.getClass().getMethod("externalClassLoader", ClassLoader.class);
+				eclMethod = ClassUtils.getPubliclyAccessibleMethodIfPossible(eclMethod, configuration.getClass());
 				ReflectionUtils.invokeMethod(eclMethod, configuration, this.applicationContext.getClassLoader());
 			}
-			catch (NoSuchMethodException ex) {
-				// Ignore - no Hibernate Validator 5.2+ or similar provider
+			catch (NoSuchMethodException ignored) {
+				// no Hibernate Validator or similar provider
 			}
 		}
 
@@ -283,8 +285,9 @@ public class LocalValidatorFactoryBean extends SpringValidatorAdapter
 
 		ConstraintValidatorFactory targetConstraintValidatorFactory = this.constraintValidatorFactory;
 		if (targetConstraintValidatorFactory == null && this.applicationContext != null) {
-			targetConstraintValidatorFactory =
-					new SpringConstraintValidatorFactory(this.applicationContext.getAutowireCapableBeanFactory());
+			targetConstraintValidatorFactory = new SpringConstraintValidatorFactory(
+					this.applicationContext.getAutowireCapableBeanFactory(),
+					configuration.getDefaultConstraintValidatorFactory());
 		}
 		if (targetConstraintValidatorFactory != null) {
 			configuration.constraintValidatorFactory(targetConstraintValidatorFactory);
@@ -332,13 +335,13 @@ public class LocalValidatorFactoryBean extends SpringValidatorAdapter
 		configuration.parameterNameProvider(new ParameterNameProvider() {
 			@Override
 			public List<String> getParameterNames(Constructor<?> constructor) {
-				String[] paramNames = discoverer.getParameterNames(constructor);
+				@Nullable String[] paramNames = discoverer.getParameterNames(constructor);
 				return (paramNames != null ? Arrays.asList(paramNames) :
 						defaultProvider.getParameterNames(constructor));
 			}
 			@Override
 			public List<String> getParameterNames(Method method) {
-				String[] paramNames = discoverer.getParameterNames(method);
+				@Nullable String[] paramNames = discoverer.getParameterNames(method);
 				return (paramNames != null ? Arrays.asList(paramNames) :
 						defaultProvider.getParameterNames(method));
 			}
@@ -367,47 +370,45 @@ public class LocalValidatorFactoryBean extends SpringValidatorAdapter
 	protected void postProcessConfiguration(Configuration<?> configuration) {
 	}
 
+	private ValidatorFactory obtainValidatorFactory() {
+		Assert.state(this.validatorFactory != null, "No target ValidatorFactory set");
+		return this.validatorFactory;
+	}
+
 
 	@Override
 	public Validator getValidator() {
-		Assert.state(this.validatorFactory != null, "No target ValidatorFactory set");
-		return this.validatorFactory.getValidator();
+		return obtainValidatorFactory().getValidator();
 	}
 
 	@Override
 	public ValidatorContext usingContext() {
-		Assert.state(this.validatorFactory != null, "No target ValidatorFactory set");
-		return this.validatorFactory.usingContext();
+		return obtainValidatorFactory().usingContext();
 	}
 
 	@Override
 	public MessageInterpolator getMessageInterpolator() {
-		Assert.state(this.validatorFactory != null, "No target ValidatorFactory set");
-		return this.validatorFactory.getMessageInterpolator();
+		return obtainValidatorFactory().getMessageInterpolator();
 	}
 
 	@Override
 	public TraversableResolver getTraversableResolver() {
-		Assert.state(this.validatorFactory != null, "No target ValidatorFactory set");
-		return this.validatorFactory.getTraversableResolver();
+		return obtainValidatorFactory().getTraversableResolver();
 	}
 
 	@Override
 	public ConstraintValidatorFactory getConstraintValidatorFactory() {
-		Assert.state(this.validatorFactory != null, "No target ValidatorFactory set");
-		return this.validatorFactory.getConstraintValidatorFactory();
+		return obtainValidatorFactory().getConstraintValidatorFactory();
 	}
 
 	@Override
 	public ParameterNameProvider getParameterNameProvider() {
-		Assert.state(this.validatorFactory != null, "No target ValidatorFactory set");
-		return this.validatorFactory.getParameterNameProvider();
+		return obtainValidatorFactory().getParameterNameProvider();
 	}
 
 	@Override
 	public ClockProvider getClockProvider() {
-		Assert.state(this.validatorFactory != null, "No target ValidatorFactory set");
-		return this.validatorFactory.getClockProvider();
+		return obtainValidatorFactory().getClockProvider();
 	}
 
 	@Override
@@ -417,8 +418,8 @@ public class LocalValidatorFactoryBean extends SpringValidatorAdapter
 			try {
 				return super.unwrap(type);
 			}
-			catch (ValidationException ex) {
-				// Ignore - we'll try ValidatorFactory unwrapping next
+			catch (ValidationException ignored) {
+				// Trying ValidatorFactory unwrapping next
 			}
 		}
 		if (this.validatorFactory != null) {

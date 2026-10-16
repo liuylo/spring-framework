@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,11 +46,9 @@ class CommandLineArgs {
 	 * without an associated value &mdash; for example, "--foo" vs. "--foo=bar".
 	 */
 	public void addOptionArg(String optionName, @Nullable String optionValue) {
-		if (!this.optionArgs.containsKey(optionName)) {
-			this.optionArgs.put(optionName, new ArrayList<>());
-		}
+		List<String> values = this.optionArgs.computeIfAbsent(optionName, key -> new ArrayList<>());
 		if (optionValue != null) {
-			this.optionArgs.get(optionName).add(optionValue);
+			values.add(optionValue);
 		}
 	}
 

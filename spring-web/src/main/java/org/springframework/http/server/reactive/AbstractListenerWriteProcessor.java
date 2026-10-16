@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,8 +34,8 @@ import org.springframework.util.StringUtils;
  * event-listener write APIs and Reactive Streams.
  *
  * <p>Specifically a base class for writing to the HTTP response body with
- * Servlet non-blocking I/O and Undertow XNIO as well for writing WebSocket
- * messages through the Jakarta WebSocket API (JSR-356), Jetty, and Undertow.
+ * Servlet non-blocking I/O as well for writing WebSocket
+ * messages through the Jakarta WebSocket API (JSR-356), and Jetty.
  *
  * @author Arjen Poutsma
  * @author Violeta Georgieva
@@ -180,7 +180,7 @@ public abstract class AbstractListenerWriteProcessor<T> implements Processor<T, 
 	 */
 	void cancelAndSetCompleted() {
 		cancel();
-		for (;;) {
+		while (true) {
 			State prev = this.state.get();
 			if (prev == State.COMPLETED) {
 				break;
@@ -247,18 +247,6 @@ public abstract class AbstractListenerWriteProcessor<T> implements Processor<T, 
 	 * we'll need more write callbacks before it is fully written
 	 */
 	protected abstract boolean write(T data) throws IOException;
-
-	/**
-	 * Invoked after the current data has been written and before requesting
-	 * the next item from the upstream, write Publisher.
-	 * <p>The default implementation is a no-op.
-	 * @deprecated originally introduced for Undertow to stop write notifications
-	 * when no data is available, but deprecated as of 5.0.6 since constant
-	 * switching on every requested item causes a significant slowdown.
-	 */
-	@Deprecated
-	protected void writingPaused() {
-	}
 
 	/**
 	 * Invoked after onComplete or onError notification.
@@ -409,7 +397,6 @@ public abstract class AbstractListenerWriteProcessor<T> implements Processor<T, 
 									processor.changeStateToReceived(REQUESTED);
 								}
 								else {
-									processor.writingPaused();
 									Assert.state(processor.subscription != null, "No subscription");
 									processor.subscription.request(1);
 								}

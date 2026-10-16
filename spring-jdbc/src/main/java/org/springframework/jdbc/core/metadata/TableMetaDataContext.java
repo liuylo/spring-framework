@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -205,12 +205,22 @@ public class TableMetaDataContext {
 		if (generatedKeyNames.length > 0) {
 			this.generatedKeyColumnsUsed = true;
 		}
-		if (!declaredColumns.isEmpty()) {
-			return new ArrayList<>(declaredColumns);
-		}
 		Set<String> keys = CollectionUtils.newLinkedHashSet(generatedKeyNames.length);
 		for (String key : generatedKeyNames) {
 			keys.add(key.toUpperCase(Locale.ROOT));
+		}
+		if (!declaredColumns.isEmpty()) {
+			List<String> overlapping = new ArrayList<>();
+			for (String column : declaredColumns) {
+				if (keys.contains(column.toUpperCase(Locale.ROOT))) {
+					overlapping.add(column);
+				}
+			}
+			if (!overlapping.isEmpty()) {
+				throw new InvalidDataAccessApiUsageException(
+						"Declared columns " + overlapping + " must not overlap with generated key columns");
+			}
+			return new ArrayList<>(declaredColumns);
 		}
 		List<String> columns = new ArrayList<>();
 		for (TableParameterMetaData meta : obtainMetaDataProvider().getTableParameterMetaData()) {
@@ -409,8 +419,7 @@ public class TableMetaDataContext {
 	}
 
 	/**
-	 * Does this database support a column name String array for retrieving generated
-	 * keys?
+	 * Does this database support a column name String array for retrieving generated keys?
 	 * @see java.sql.Connection#createStruct(String, Object[])
 	 */
 	public boolean isGeneratedKeysColumnNameArraySupported() {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -172,7 +172,7 @@ public class ReactorNettyTcpClient<P> implements TcpOperations<P> {
 
 
 	@Override
-	public CompletableFuture<Void> connectAsync(TcpConnectionHandler<P> handler) {
+	public CompletableFuture<@Nullable Void> connectAsync(TcpConnectionHandler<P> handler) {
 		Assert.notNull(handler, "TcpConnectionHandler is required");
 
 		if (this.stopping) {
@@ -200,7 +200,7 @@ public class ReactorNettyTcpClient<P> implements TcpOperations<P> {
 	}
 
 	@Override
-	public CompletableFuture<Void> connectAsync(TcpConnectionHandler<P> handler, ReconnectStrategy strategy) {
+	public CompletableFuture<@Nullable Void> connectAsync(TcpConnectionHandler<P> handler, ReconnectStrategy strategy) {
 		Assert.notNull(handler, "TcpConnectionHandler is required");
 		Assert.notNull(strategy, "ReconnectStrategy is required");
 
@@ -208,8 +208,8 @@ public class ReactorNettyTcpClient<P> implements TcpOperations<P> {
 			return handleShuttingDownConnectFailure(handler);
 		}
 
-		// Report first connect to the ListenableFuture
-		CompletableFuture<Void> connectFuture = new CompletableFuture<>();
+		// Report first connect to the CompletableFuture
+		CompletableFuture<@Nullable Void> connectFuture = new CompletableFuture<>();
 
 		extendTcpClient(this.tcpClient, handler)
 				.handle(new ReactorNettyHandler(handler))
@@ -222,13 +222,13 @@ public class ReactorNettyTcpClient<P> implements TcpOperations<P> {
 						.map(retrySignal -> (int) retrySignal.totalRetriesInARow())
 						.flatMap(attempt -> reconnect(attempt, strategy))))
 				.repeatWhen(flux -> flux
-						.scan(1, (count, element) -> count++)
+					.scan(1, (count, element) -> count + 1)
 						.flatMap(attempt -> reconnect(attempt, strategy)))
 				.subscribe();
 		return connectFuture;
 	}
 
-	private CompletableFuture<Void> handleShuttingDownConnectFailure(TcpConnectionHandler<P> handler) {
+	private CompletableFuture<@Nullable Void> handleShuttingDownConnectFailure(TcpConnectionHandler<P> handler) {
 		IllegalStateException ex = new IllegalStateException("Shutting down.");
 		handler.afterConnectFailure(ex);
 		return Mono.<Void>error(ex).toFuture();
@@ -240,7 +240,7 @@ public class ReactorNettyTcpClient<P> implements TcpOperations<P> {
 	}
 
 	@Override
-	public CompletableFuture<Void> shutdownAsync() {
+	public CompletableFuture<@Nullable Void> shutdownAsync() {
 		if (this.stopping) {
 			return CompletableFuture.completedFuture(null);
 		}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,9 +34,19 @@ import org.springframework.core.annotation.AliasFor;
  * <p>This annotation may be used as a <em>meta-annotation</em> to create custom
  * <em>composed annotations</em>.
  *
- * <p>As of Spring Framework 5.3, this annotation will be inherited from an
- * enclosing test class by default. See
- * {@link NestedTestConfiguration @NestedTestConfiguration} for details.
+ * <p>This annotation will be inherited from an enclosing test class by default.
+ * See {@link NestedTestConfiguration @NestedTestConfiguration} for details.
+ *
+ * <p>Note that when {@code @ActiveProfiles} is declared on a test class, the
+ * {@link org.springframework.core.env.AbstractEnvironment#ACTIVE_PROFILES_PROPERTY_NAME
+ * spring.profiles.active} property (whether configured as a JVM system property
+ * or environment variable) is not taken into account by the Spring TestContext
+ * Framework when determining active profiles. If you need to allow
+ * {@code spring.profiles.active} to override the profiles configured via
+ * {@code @ActiveProfiles}, you can implement a custom {@link ActiveProfilesResolver}
+ * and register it via the {@link #resolver} attribute. See
+ * <em>Context Configuration with Environment Profiles</em> in the reference manual
+ * for further details and examples.
  *
  * @author Sam Brannen
  * @since 3.1
@@ -72,6 +82,9 @@ public @interface ActiveProfiles {
 	/**
 	 * The type of {@link ActiveProfilesResolver} to use for resolving the active
 	 * bean definition profiles programmatically.
+	 * <p>If not specified, the
+	 * {@link org.springframework.test.context.support.DefaultActiveProfilesResolver
+	 * DefaultActiveProfilesResolver} will be used.
 	 * @since 4.0
 	 * @see ActiveProfilesResolver
 	 */

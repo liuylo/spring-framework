@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -139,9 +139,10 @@ public class ResponseEntity<T> extends HttpEntity<T> {
 	 * Create a {@code ResponseEntity} with headers and a status code.
 	 * @param headers the entity headers
 	 * @param status the status code
-	 * @deprecated Use {@link #ResponseEntity(HttpHeaders, HttpStatusCode)}
+	 * @deprecated in favor of {@link #ResponseEntity(HttpHeaders, HttpStatusCode)}
 	 */
-	@Deprecated
+	@SuppressWarnings("removal")
+	@Deprecated(since = "7.0", forRemoval = true)
 	public ResponseEntity(MultiValueMap<String, String> headers, HttpStatusCode status) {
 		this(null, headers, status);
 	}
@@ -152,9 +153,10 @@ public class ResponseEntity<T> extends HttpEntity<T> {
 	 * @param headers the entity headers
 	 * @param rawStatus the status code value
 	 * @since 5.3.2
-	 * @deprecated Use {@link #ResponseEntity(Object, HttpHeaders, int)}
+	 * @deprecated in favor of {@link #ResponseEntity(Object, HttpHeaders, int)}
 	 */
-	@Deprecated
+	@SuppressWarnings("removal")
+	@Deprecated(since = "7.0", forRemoval = true)
 	public ResponseEntity(@Nullable T body, @Nullable MultiValueMap<String, String> headers, int rawStatus) {
 		this(body, headers, HttpStatusCode.valueOf(rawStatus));
 	}
@@ -164,9 +166,10 @@ public class ResponseEntity<T> extends HttpEntity<T> {
 	 * @param body the entity body
 	 * @param headers the entity headers
 	 * @param statusCode the status code
-	 * @deprecated Use {@link #ResponseEntity(Object, HttpHeaders, HttpStatusCode)}
+	 * @deprecated in favor of {@link #ResponseEntity(Object, HttpHeaders, HttpStatusCode)}
 	 */
-	@Deprecated
+	@SuppressWarnings("removal")
+	@Deprecated(since = "7.0", forRemoval = true)
 	public ResponseEntity(@Nullable T body, @Nullable MultiValueMap<String, String> headers, HttpStatusCode statusCode) {
 		super(body, headers);
 		Assert.notNull(statusCode, "HttpStatusCode must not be null");
@@ -181,18 +184,6 @@ public class ResponseEntity<T> extends HttpEntity<T> {
 	 */
 	public HttpStatusCode getStatusCode() {
 		return this.status;
-	}
-
-	/**
-	 * Return the HTTP status code of the response.
-	 * @return the HTTP status as an int value
-	 * @since 4.3
-	 * @deprecated as of 6.0, in favor of {@link #getStatusCode()}; scheduled
-	 * for removal in 7.0
-	 */
-	@Deprecated(since = "6.0")
-	public int getStatusCodeValue() {
-		return getStatusCode().value();
 	}
 
 
@@ -375,10 +366,22 @@ public class ResponseEntity<T> extends HttpEntity<T> {
 
 	/**
 	 * Create a builder with an
+	 * {@linkplain HttpStatus#UNPROCESSABLE_CONTENT UNPROCESSABLE_CONTENT} status.
+	 * @return the created builder
+	 * @since 7.0
+	 */
+	public static BodyBuilder unprocessableContent() {
+		return status(HttpStatus.UNPROCESSABLE_CONTENT);
+	}
+
+	/**
+	 * Create a builder with an
 	 * {@linkplain HttpStatus#UNPROCESSABLE_ENTITY UNPROCESSABLE_ENTITY} status.
 	 * @return the created builder
 	 * @since 4.1.3
+	 * @deprecated since 7.0 in favor of {@link #unprocessableContent()}
 	 */
+	@Deprecated(since = "7.0")
 	public static BodyBuilder unprocessableEntity() {
 		return status(HttpStatus.UNPROCESSABLE_ENTITY);
 	}

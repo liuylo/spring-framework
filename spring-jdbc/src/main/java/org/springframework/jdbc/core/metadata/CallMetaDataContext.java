@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -374,9 +374,14 @@ public class CallMetaDataContext {
 			if (declaredParams.containsKey(paramNameToCheck) || (meta.isReturnParameter() && returnDeclared)) {
 				SqlParameter param;
 				if (meta.isReturnParameter()) {
-					param = declaredParams.get(getFunctionReturnName());
+					// Same normalization as the declaredParams keys above; the function
+					// return name may have been adopted from a declared out parameter
+					param = declaredParams.get(paramNameToCheck);
+					if (param == null) {
+						param = declaredParams.get(lowerCase(provider.parameterNameToUse(getFunctionReturnName())));
+					}
 					if (param == null && !getOutParameterNames().isEmpty()) {
-						param = declaredParams.get(getOutParameterNames().get(0).toLowerCase(Locale.ROOT));
+						param = declaredParams.get(lowerCase(provider.parameterNameToUse(getOutParameterNames().get(0))));
 					}
 					if (param == null) {
 						throw new InvalidDataAccessApiUsageException(

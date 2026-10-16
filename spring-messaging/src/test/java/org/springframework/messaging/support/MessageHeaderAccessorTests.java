@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -132,7 +132,7 @@ class MessageHeaderAccessorTests {
 	}
 
 	@Test
-	void testRemoveHeader() {
+	void removeHeader() {
 		Message<?> message = new GenericMessage<>("payload", Collections.singletonMap("foo", "bar"));
 		MessageHeaderAccessor accessor = new MessageHeaderAccessor(message);
 		accessor.removeHeader("foo");
@@ -141,7 +141,7 @@ class MessageHeaderAccessorTests {
 	}
 
 	@Test
-	void testRemoveHeaderEvenIfNull() {
+	void removeHeaderEvenIfNull() {
 		Message<?> message = new GenericMessage<>("payload", Collections.singletonMap("foo", null));
 		MessageHeaderAccessor accessor = new MessageHeaderAccessor(message);
 		accessor.removeHeader("foo");

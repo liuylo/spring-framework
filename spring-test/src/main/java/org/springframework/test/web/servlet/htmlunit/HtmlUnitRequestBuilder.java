@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -211,14 +211,11 @@ final class HtmlUnitRequestBuilder implements RequestBuilder, Mergeable {
 
 	private void ports(UriComponents uriComponents, MockHttpServletRequest request) {
 		int serverPort = uriComponents.getPort();
-		request.setServerPort(serverPort);
 		if (serverPort == -1) {
-			int portConnection = this.webRequest.getUrl().getDefaultPort();
-			request.setLocalPort(serverPort);
-			request.setRemotePort(portConnection);
+			serverPort = this.webRequest.getUrl().getDefaultPort();
 		}
-		else {
-			request.setRemotePort(serverPort);
+		if (serverPort != -1) {
+			request.setServerPort(serverPort);
 		}
 	}
 
@@ -296,8 +293,8 @@ final class HtmlUnitRequestBuilder implements RequestBuilder, Mergeable {
 			}
 		}
 
-		Set<org.htmlunit.util.Cookie> managedCookies = this.webClient.getCookies(this.webRequest.getUrl());
-		for (org.htmlunit.util.Cookie cookie : managedCookies) {
+		Set<org.htmlunit.http.Cookie> managedCookies = this.webClient.getCookies(this.webRequest.getUrl());
+		for (org.htmlunit.http.Cookie cookie : managedCookies) {
 			processCookie(request, cookies, new Cookie(cookie.getName(), cookie.getValue()));
 		}
 
@@ -346,8 +343,8 @@ final class HtmlUnitRequestBuilder implements RequestBuilder, Mergeable {
 		this.webClient.getCookieManager().removeCookie(createCookie(request, sessionid));
 	}
 
-	private org.htmlunit.util.Cookie createCookie(MockHttpServletRequest request, String sessionid) {
-		return new org.htmlunit.util.Cookie(request.getServerName(), "JSESSIONID", sessionid,
+	private org.htmlunit.http.Cookie createCookie(MockHttpServletRequest request, String sessionid) {
+		return new org.htmlunit.http.Cookie(request.getServerName(), "JSESSIONID", sessionid,
 				request.getContextPath() + "/", null, request.isSecure(), true);
 	}
 

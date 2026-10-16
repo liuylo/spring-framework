@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,9 +56,12 @@ import org.springframework.transaction.TransactionDefinition;
  * {@link #rollbackForClassName}/{@link #noRollbackForClassName}, which allow
  * rules to be specified as types or patterns, respectively.
  *
- * <p>When a rollback rule is defined with an exception type, that type will be
- * used to match against the type of a thrown exception and its super types,
- * providing type safety and avoiding any unintentional matches that may occur
+ * <p>When a rollback rule is defined with an exception type &mdash; for example,
+ * via {@link #rollbackFor} &mdash; that type will be used to match against the
+ * type of a thrown exception. Specifically, given a configured exception type
+ * {@code C}, a thrown exception of type {@code T} will be considered a match
+ * against {@code C} if {@code T} is equal to {@code C} or a subclass of {@code C}.
+ * This provides type safety and avoids any unintentional matches that may occur
  * when using a pattern. For example, a value of
  * {@code jakarta.servlet.ServletException.class} will only match thrown exceptions
  * of type {@code jakarta.servlet.ServletException} and its subclasses.
@@ -179,7 +182,7 @@ public @interface Transactional {
 	 * <p>Defaults to {@link Isolation#DEFAULT}.
 	 * <p>Exclusively designed for use with {@link Propagation#REQUIRED} or
 	 * {@link Propagation#REQUIRES_NEW} since it only applies to newly started
-	 * transactions. Consider switching the "validateExistingTransactions" flag to
+	 * transactions. Consider switching the "validateExistingTransaction" flag to
 	 * "true" on your transaction manager if you'd like isolation level declarations
 	 * to get rejected when participating in an existing transaction with a different
 	 * isolation level.

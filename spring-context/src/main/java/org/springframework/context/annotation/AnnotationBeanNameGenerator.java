@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package org.springframework.context.annotation;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -34,6 +35,7 @@ import org.springframework.beans.factory.annotation.AnnotatedBeanDefinition;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.beans.factory.support.BeanNameGenerator;
+import org.springframework.core.annotation.AliasFor;
 import org.springframework.core.annotation.AnnotationAttributes;
 import org.springframework.core.annotation.MergedAnnotation;
 import org.springframework.core.annotation.MergedAnnotation.Adapt;
@@ -41,6 +43,7 @@ import org.springframework.core.annotation.MergedAnnotations;
 import org.springframework.core.type.AnnotationMetadata;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
+import org.springframework.util.ReflectionUtils;
 import org.springframework.util.StringUtils;
 
 /**
@@ -100,7 +103,6 @@ public class AnnotationBeanNameGenerator implements BeanNameGenerator {
 	private final Map<String, Set<String>> metaAnnotationTypesCache = new ConcurrentHashMap<>();
 
 
-
 	@Override
 	public String generateBeanName(BeanDefinition definition, BeanDefinitionRegistry registry) {
 		if (definition instanceof AnnotatedBeanDefinition annotatedBeanDefinition) {
@@ -143,12 +145,13 @@ public class AnnotationBeanNameGenerator implements BeanNameGenerator {
 				Set<String> metaAnnotationTypes = this.metaAnnotationTypesCache.computeIfAbsent(annotationType,
 						key -> getMetaAnnotationTypes(mergedAnnotation));
 				if (isStereotypeWithNameValue(annotationType, metaAnnotationTypes, attributes)) {
-					Object value = attributes.get("value");
-					if (value instanceof String currentName && !currentName.isBlank()) {
+					Object value = attributes.get(MergedAnnotation.VALUE);
+					if (value instanceof String currentName && !currentName.isBlank() &&
+							!hasExplicitlyAliasedValueAttribute(mergedAnnotation.getType())) {
 						if (conventionBasedStereotypeCheckCache.add(annotationType) &&
 								metaAnnotationTypes.contains(COMPONENT_ANNOTATION_CLASSNAME) && logger.isWarnEnabled()) {
 							logger.warn("""
-									Support for convention-based stereotype names is deprecated and will \
+									Support for convention-based @Component names is deprecated and will \
 									be removed in a future version of the framework. Please annotate the \
 									'value' attribute in @%s with @AliasFor(annotation=Component.class) \
 									to declare an explicit alias for @Component's 'value' attribute."""
@@ -196,8 +199,7 @@ public class AnnotationBeanNameGenerator implements BeanNameGenerator {
 			return names.get(0);
 		}
 		if (names.size() > 1) {
-			throw new IllegalStateException(
-					"Stereotype annotations suggest inconsistent component names: " + names);
+			throw new IllegalStateException("Stereotype annotations suggest inconsistent component names: " + names);
 		}
 		return null;
 	}
@@ -211,12 +213,11 @@ public class AnnotationBeanNameGenerator implements BeanNameGenerator {
 	 * @return whether the annotation qualifies as a stereotype with component name
 	 */
 	protected boolean isStereotypeWithNameValue(String annotationType,
-			Set<String> metaAnnotationTypes, Map<String, Object> attributes) {
+			Set<String> metaAnnotationTypes, Map<String, @Nullable Object> attributes) {
 
 		boolean isStereotype = metaAnnotationTypes.contains(COMPONENT_ANNOTATION_CLASSNAME) ||
 				annotationType.equals("jakarta.inject.Named");
-
-		return (isStereotype && attributes.containsKey("value"));
+		return (isStereotype && attributes.containsKey(MergedAnnotation.VALUE));
 	}
 
 	/**
@@ -245,6 +246,16 @@ public class AnnotationBeanNameGenerator implements BeanNameGenerator {
 		Assert.state(beanClassName != null, "No bean class name set");
 		String shortClassName = ClassUtils.getShortName(beanClassName);
 		return StringUtils.uncapitalizeAsProperty(shortClassName);
+	}
+
+	/**
+	 * Determine if the supplied annotation type declares a {@code value()} attribute
+	 * with an explicit alias configured via {@link AliasFor @AliasFor}.
+	 * @since 6.2.3
+	 */
+	private static boolean hasExplicitlyAliasedValueAttribute(Class<? extends Annotation> annotationType) {
+		Method valueAttribute = ReflectionUtils.findMethod(annotationType, MergedAnnotation.VALUE);
+		return (valueAttribute != null && valueAttribute.isAnnotationPresent(AliasFor.class));
 	}
 
 }

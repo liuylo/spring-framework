@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import org.assertj.core.api.AbstractAssert;
-import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.AutoClose;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ParameterContext;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -84,13 +84,9 @@ import static org.assertj.core.api.SoftAssertions.assertSoftly;
  */
 class ScheduledAnnotationBeanPostProcessorTests {
 
+	@AutoClose
 	private final StaticApplicationContext context = new StaticApplicationContext();
 
-
-	@AfterEach
-	void closeContextAfterTest() {
-		context.close();
-	}
 
 	@ParameterizedTest
 	@CsvSource(textBlock = """
@@ -335,8 +331,7 @@ class ScheduledAnnotationBeanPostProcessorTests {
 		assertThat(task.getExpression()).isEqualTo("0 0 0-4,6-23 * * ?");
 		Trigger trigger = task.getTrigger();
 		assertThat(trigger).isNotNull();
-		boolean condition = trigger instanceof CronTrigger;
-		assertThat(condition).isTrue();
+		assertThat(trigger).isInstanceOf(CronTrigger.class);
 		CronTrigger cronTrigger = (CronTrigger) trigger;
 		ZonedDateTime dateTime = ZonedDateTime.of(2013, 4, 15, 4, 0, 0, 0, ZoneId.of("GMT+10"));
 		Instant lastScheduledExecution = dateTime.toInstant();

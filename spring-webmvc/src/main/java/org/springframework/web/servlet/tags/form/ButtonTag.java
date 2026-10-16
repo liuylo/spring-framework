@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -67,6 +67,7 @@ import org.springframework.web.servlet.support.RequestDataValueProcessor;
  * </table>
  *
  * @author Rossen Stoyanchev
+ * @author Sebastien Deleuze
  * @since 3.1
  */
 @SuppressWarnings("serial")
@@ -152,7 +153,8 @@ public class ButtonTag extends AbstractHtmlElementTag {
 	 */
 	protected void writeValue(TagWriter tagWriter) throws JspException {
 		String valueToUse = (getValue() != null ? getValue() : getDefaultValue());
-		tagWriter.writeAttribute("value", processFieldValue(getName(), valueToUse, getType()));
+		tagWriter.writeAttribute("value",
+				processFieldValue(getName(), getDisplayString(valueToUse), getType()));
 	}
 
 	/**

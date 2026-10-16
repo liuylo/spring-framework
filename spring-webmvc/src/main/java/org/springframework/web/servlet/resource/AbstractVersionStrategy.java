@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -134,7 +134,12 @@ public abstract class AbstractVersionStrategy implements VersionStrategy {
 
 		@Override
 		public String removeVersion(String requestPath, String version) {
-			return StringUtils.delete(requestPath, "-" + version);
+			String versionString = "-" + version;
+			int index = requestPath.lastIndexOf(versionString);
+			if (index != -1) {
+				return requestPath.substring(0, index) + requestPath.substring(index + versionString.length());
+			}
+			return requestPath;
 		}
 
 		@Override

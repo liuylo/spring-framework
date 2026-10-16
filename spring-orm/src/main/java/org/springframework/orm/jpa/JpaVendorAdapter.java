@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2020 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -122,6 +122,20 @@ public interface JpaVendorAdapter {
 	 */
 	default Class<? extends EntityManager> getEntityManagerInterface() {
 		return EntityManager.class;
+	}
+
+	/**
+	 * Return the vendor-specific JPA 4.0 EntityAgent interface
+	 * that this provider's EntityAgents will implement.
+	 * <p>If the provider does not offer any EntityAgent extensions,
+	 * the adapter should simply return the standard
+	 * {@code jakarta.persistence.EntityAgent} class here.
+	 * @return the EntityAgent class, or {@code null} if not supported
+	 * (on JPA 3.2)
+	 * @since 7.0.4
+	 */
+	default @Nullable Class<?> getEntityAgentInterface() {
+		return EntityManagerFactoryUtils.getEntityAgentClass();
 	}
 
 	/**

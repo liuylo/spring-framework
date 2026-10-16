@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,7 +33,6 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.converter.HttpMessageNotWritableException;
-import org.springframework.validation.BindException;
 import org.springframework.validation.method.MethodValidationException;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.ErrorResponseException;
@@ -50,6 +49,7 @@ import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
+import org.springframework.web.filter.ServerHttpObservationFilter;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
@@ -134,7 +134,6 @@ public abstract class ResponseEntityExceptionHandler implements MessageSourceAwa
 			HttpMessageNotReadableException.class,
 			HttpMessageNotWritableException.class,
 			MethodValidationException.class,
-			BindException.class,
 			AsyncRequestNotUsableException.class
 		})
 	public final @Nullable ResponseEntity<Object> handleException(Exception ex, WebRequest request) throws Exception {
@@ -468,7 +467,7 @@ public abstract class ResponseEntityExceptionHandler implements MessageSourceAwa
 
 	/**
 	 * Customize the handling of {@link TypeMismatchException}.
-	 * <p>By default this method creates a {@link ProblemDetail} with the status
+	 * <p>By default, this method creates a {@link ProblemDetail} with the status
 	 * and a short detail message, and also looks up an override for the detail
 	 * via {@link MessageSource}, before delegating to
 	 * {@link #handleExceptionInternal}.
@@ -482,7 +481,8 @@ public abstract class ResponseEntityExceptionHandler implements MessageSourceAwa
 	protected @Nullable ResponseEntity<Object> handleTypeMismatch(
 			TypeMismatchException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
 
-		Object[] args = {ex.getPropertyName(), ex.getValue()};
+		Object[] args = {ex.getPropertyName(), ex.getValue(),
+				(ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "")};
 		String defaultDetail = "Failed to convert '" + args[0] + "' with value: '" + args[1] + "'";
 		String messageCode = ErrorResponse.getDefaultDetailMessageCode(TypeMismatchException.class, null);
 		ProblemDetail body = createProblemDetail(ex, status, defaultDetail, messageCode, args, request);
@@ -603,7 +603,11 @@ public abstract class ResponseEntityExceptionHandler implements MessageSourceAwa
 	 * <ul>
 	 * <li>return {@code null} if response is already committed
 	 * <li>set the {@code "jakarta.servlet.error.exception"} request attribute
-	 * if the response status is 500 (INTERNAL_SERVER_ERROR).
+	 * if the response status is 500 (INTERNAL_SERVER_ERROR) and there is no body.
+	 * <li>record the exception as the error of the current HTTP server observation,
+	 * if any, when the response status is a 5xx server error, since it signals
+	 * a server failure. Exceptions resulting in other statuses, for example, 4xx
+	 * client errors, are not recorded as errors.
 	 * <li>extract the {@link ErrorResponse#getBody() body} from
 	 * {@link ErrorResponse} exceptions, if the {@code body} is {@code null}.
 	 * </ul>
@@ -636,7 +640,18 @@ public abstract class ResponseEntityExceptionHandler implements MessageSourceAwa
 			request.setAttribute(WebUtils.ERROR_EXCEPTION_ATTRIBUTE, ex, WebRequest.SCOPE_REQUEST);
 		}
 
+		if (statusCode.is5xxServerError()) {
+			recordObservationError(ex, request);
+		}
+
 		return createResponseEntity(body, headers, statusCode, request);
+	}
+
+	private void recordObservationError(Exception ex, WebRequest request) {
+		if (request instanceof ServletWebRequest servletWebRequest) {
+			ServerHttpObservationFilter.findObservationContext(servletWebRequest.getRequest())
+					.ifPresent(context -> context.setError(ex));
+		}
 	}
 
 	/**

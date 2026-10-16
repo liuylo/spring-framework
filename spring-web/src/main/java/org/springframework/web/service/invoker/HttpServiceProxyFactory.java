@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import org.springframework.aop.framework.ProxyFactory;
 import org.springframework.aop.framework.ReflectiveMethodInvocation;
 import org.springframework.core.KotlinDetector;
 import org.springframework.core.MethodIntrospector;
+import org.springframework.core.MethodParameter;
 import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.core.convert.ConversionService;
 import org.springframework.format.support.DefaultFormattingConversionService;
@@ -58,16 +59,24 @@ public final class HttpServiceProxyFactory {
 
 	private final List<HttpServiceArgumentResolver> argumentResolvers;
 
+	private final HttpRequestValues.Processor requestValuesProcessor;
+
 	private final @Nullable StringValueResolver embeddedValueResolver;
+
+	private final List<ProxyFactoryCustomizer> proxyFactoryCustomizers;
 
 
 	private HttpServiceProxyFactory(
 			HttpExchangeAdapter exchangeAdapter, List<HttpServiceArgumentResolver> argumentResolvers,
-			@Nullable StringValueResolver embeddedValueResolver) {
+			List<HttpRequestValues.Processor> requestValuesProcessor,
+			@Nullable StringValueResolver embeddedValueResolver,
+			List<ProxyFactoryCustomizer> proxyFactoryCustomizers) {
 
 		this.exchangeAdapter = exchangeAdapter;
 		this.argumentResolvers = argumentResolvers;
+		this.requestValuesProcessor = new CompositeHttpRequestValuesProcessor(requestValuesProcessor);
 		this.embeddedValueResolver = embeddedValueResolver;
+		this.proxyFactoryCustomizers = proxyFactoryCustomizers;
 	}
 
 
@@ -79,13 +88,22 @@ public final class HttpServiceProxyFactory {
 	 * @return the created proxy
 	 */
 	public <S> S createClient(Class<S> serviceType) {
-
 		List<HttpServiceMethod> httpServiceMethods =
 				MethodIntrospector.selectMethods(serviceType, this::isExchangeMethod).stream()
 						.map(method -> createHttpServiceMethod(serviceType, method))
 						.toList();
 
-		return ProxyFactory.getProxy(serviceType, new HttpServiceMethodInterceptor(httpServiceMethods));
+		return getProxy(serviceType, httpServiceMethods);
+	}
+
+	@SuppressWarnings("unchecked")
+	private <S> S getProxy(Class<S> serviceType, List<HttpServiceMethod> httpServiceMethods) {
+		MethodInterceptor interceptor = new HttpServiceMethodInterceptor(httpServiceMethods);
+		ProxyFactory factory = new ProxyFactory(serviceType, interceptor);
+		for (ProxyFactoryCustomizer customizer : this.proxyFactoryCustomizers) {
+			customizer.customize(factory, serviceType);
+		}
+		return (S) factory.getProxy(serviceType.getClassLoader());
 	}
 
 	private boolean isExchangeMethod(Method method) {
@@ -97,7 +115,8 @@ public final class HttpServiceProxyFactory {
 				"No argument resolvers: afterPropertiesSet was not called");
 
 		return new HttpServiceMethod(
-				method, serviceType, this.argumentResolvers, this.exchangeAdapter, this.embeddedValueResolver);
+				method, serviceType, this.argumentResolvers, this.requestValuesProcessor,
+				this.exchangeAdapter, this.embeddedValueResolver);
 	}
 
 
@@ -124,11 +143,17 @@ public final class HttpServiceProxyFactory {
 
 		private @Nullable HttpExchangeAdapter exchangeAdapter;
 
+		private Function<HttpExchangeAdapter, HttpExchangeAdapter> exchangeAdapterDecorator = Function.identity();
+
 		private final List<HttpServiceArgumentResolver> customArgumentResolvers = new ArrayList<>();
 
 		private @Nullable ConversionService conversionService;
 
+		private final List<HttpRequestValues.Processor> requestValuesProcessors = new ArrayList<>();
+
 		private @Nullable StringValueResolver embeddedValueResolver;
+
+		private final List<ProxyFactoryCustomizer> proxyFactoryCustomizers = new ArrayList<>();
 
 		private Builder() {
 		}
@@ -145,6 +170,17 @@ public final class HttpServiceProxyFactory {
 		}
 
 		/**
+		 * Provide a function to wrap the configured {@code HttpExchangeAdapter}.
+		 * @param decorator a client adapted to {@link HttpExchangeAdapter}
+		 * @return this same builder instance
+		 * @since 7.0
+		 */
+		public Builder exchangeAdapterDecorator(Function<HttpExchangeAdapter, HttpExchangeAdapter> decorator) {
+			this.exchangeAdapterDecorator = this.exchangeAdapterDecorator.andThen(decorator);
+			return this;
+		}
+
+		/**
 		 * Register a custom argument resolver, invoked ahead of default resolvers.
 		 * @param resolver the resolver to add
 		 * @return this same builder instance
@@ -157,11 +193,23 @@ public final class HttpServiceProxyFactory {
 		/**
 		 * Set the {@link ConversionService} to use where input values need to
 		 * be formatted as Strings.
-		 * <p>By default this is {@link DefaultFormattingConversionService}.
+		 * <p>By default, this is {@link DefaultFormattingConversionService}.
 		 * @return this same builder instance
 		 */
 		public Builder conversionService(ConversionService conversionService) {
 			this.conversionService = conversionService;
+			return this;
+		}
+
+		/**
+		 * Register an {@link HttpRequestValues} processor that can further
+		 * customize request values based on the method and all arguments.
+		 * @param processor the processor to add
+		 * @return this same builder instance
+		 * @since 7.0
+		 */
+		public Builder httpRequestValuesProcessor(HttpRequestValues.Processor processor) {
+			this.requestValuesProcessors.add(processor);
 			return this;
 		}
 
@@ -177,13 +225,27 @@ public final class HttpServiceProxyFactory {
 		}
 
 		/**
+		 * Register a callback to customize the {@link ProxyFactory} used to
+		 * create the proxy for each HTTP service interface.
+		 * @param customizer the customizer to add
+		 * @return this same builder instance
+		 * @since 7.1
+		 */
+		public Builder proxyFactoryCustomizer(ProxyFactoryCustomizer customizer) {
+			this.proxyFactoryCustomizers.add(customizer);
+			return this;
+		}
+
+		/**
 		 * Build the {@link HttpServiceProxyFactory} instance.
 		 */
 		public HttpServiceProxyFactory build() {
 			Assert.notNull(this.exchangeAdapter, "HttpClientAdapter is required");
+			HttpExchangeAdapter adapterToUse = this.exchangeAdapterDecorator.apply(this.exchangeAdapter);
 
 			return new HttpServiceProxyFactory(
-					this.exchangeAdapter, initArgumentResolvers(), this.embeddedValueResolver);
+					adapterToUse, initArgumentResolvers(), this.requestValuesProcessors,
+					this.embeddedValueResolver, this.proxyFactoryCustomizers);
 		}
 
 		@SuppressWarnings({"DataFlowIssue", "NullAway"})
@@ -233,7 +295,7 @@ public final class HttpServiceProxyFactory {
 			Method method = invocation.getMethod();
 			HttpServiceMethod httpServiceMethod = this.httpServiceMethods.get(method);
 			if (httpServiceMethod != null) {
-				Object[] arguments = KotlinDetector.isSuspendingFunction(method) ?
+				@Nullable Object[] arguments = KotlinDetector.isSuspendingFunction(method) ?
 						resolveCoroutinesArguments(invocation.getArguments()) : invocation.getArguments();
 				return httpServiceMethod.invoke(arguments);
 			}
@@ -246,11 +308,45 @@ public final class HttpServiceProxyFactory {
 			throw new IllegalStateException("Unexpected method invocation: " + method);
 		}
 
-		private static Object[] resolveCoroutinesArguments(Object[] args) {
+		private static Object[] resolveCoroutinesArguments(@Nullable Object[] args) {
 			Object[] functionArgs = new Object[args.length - 1];
 			System.arraycopy(args, 0, functionArgs, 0, args.length - 1);
 			return functionArgs;
 		}
+	}
+
+
+	/**
+	 * Processor that delegates to a list of other processors.
+	 */
+	private record CompositeHttpRequestValuesProcessor(List<HttpRequestValues.Processor> processors)
+			implements HttpRequestValues.Processor {
+
+		@Override
+		public void process(
+				Method method, MethodParameter[] parameters, @Nullable Object[] arguments,
+				HttpRequestValues.Builder builder) {
+
+			for (HttpRequestValues.Processor processor : this.processors) {
+				processor.process(method, parameters, arguments, builder);
+			}
+		}
+	}
+
+	/**
+	 * Callback mechanism to customize the {@link ProxyFactory} used to create the
+	 * proxy for each HTTP service interface, e.g. to add AOP interceptors.
+	 * @author Dung Dang Minh
+	 * @since 7.1
+	 */
+	public interface ProxyFactoryCustomizer {
+
+		/**
+		 * Customize the {@link ProxyFactory} for the given HTTP service type.
+		 * @param proxyFactory will never be {@literal null}.
+		 * @param serviceType the HTTP service interface type
+		 */
+		void customize(ProxyFactory proxyFactory, Class<?> serviceType);
 
 	}
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -71,6 +71,9 @@ public class SpringTemplateLoader implements TemplateLoader {
 	public @Nullable Object findTemplateSource(String name) throws IOException {
 		if (logger.isDebugEnabled()) {
 			logger.debug("Looking for FreeMarker template with name [" + name + "]");
+		}
+		if (name.indexOf('\\') != -1) {
+			return null;
 		}
 		Resource resource = this.resourceLoader.getResource(this.templateLoaderPath + name);
 		return (resource.exists() ? resource : null);

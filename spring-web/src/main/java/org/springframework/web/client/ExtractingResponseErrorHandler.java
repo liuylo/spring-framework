@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -60,7 +60,10 @@ import org.springframework.util.CollectionUtils;
  * @author Arjen Poutsma
  * @since 5.0
  * @see RestTemplate#setErrorHandler(ResponseErrorHandler)
+ * @deprecated as of 7.1 in favor of {@link RestClient.ResponseSpec.ErrorHandler}
  */
+@Deprecated(since = "7.1", forRemoval = true)
+@SuppressWarnings("removal")
 public class ExtractingResponseErrorHandler extends DefaultResponseErrorHandler {
 
 	private List<HttpMessageConverter<?>> messageConverters = Collections.emptyList();

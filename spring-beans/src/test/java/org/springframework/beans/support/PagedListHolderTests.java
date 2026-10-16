@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,11 +32,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @author Chris Beams
  * @since 20.05.2003
  */
+@Deprecated(since = "7.0.3", forRemoval = true)
+@SuppressWarnings("removal")
 class PagedListHolderTests {
 
 	@Test
 	@SuppressWarnings({ "rawtypes", "unchecked" })
-	public void testPagedListHolder() {
+	void pagedListHolder() {
 		TestBean tb1 = new TestBean();
 		tb1.setName("eva");
 		tb1.setAge(25);

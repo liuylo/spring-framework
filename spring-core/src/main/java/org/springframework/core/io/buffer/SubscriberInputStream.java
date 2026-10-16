@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -72,7 +72,7 @@ final class SubscriberInputStream extends InputStream implements Subscriber<Data
 
 	private final Queue<DataBuffer> queue;
 
-	private final AtomicReference<Object> parkedThread = new AtomicReference<>();
+	private final AtomicReference<@Nullable Object> parkedThread = new AtomicReference<>();
 
 	private final AtomicInteger workAmount = new AtomicInteger();
 
@@ -169,7 +169,7 @@ final class SubscriberInputStream extends InputStream implements Subscriber<Data
 	}
 
 	int addWork() {
-		for (;;) {
+		while (true) {
 			int produced = this.workAmount.getPlain();
 
 			if (produced == Integer.MIN_VALUE) {
@@ -185,7 +185,7 @@ final class SubscriberInputStream extends InputStream implements Subscriber<Data
 	}
 
 	private void resume() {
-		if (this.parkedThread != READY) {
+		if (this.parkedThread.get() != READY) {
 			Object old = this.parkedThread.getAndSet(READY);
 			if (old != READY) {
 				LockSupport.unpark((Thread)old);
@@ -297,7 +297,7 @@ final class SubscriberInputStream extends InputStream implements Subscriber<Data
 			this.available = null;
 
 			int actualWorkAmount = this.workAmount.getAcquire();
-			for (;;) {
+			while (true) {
 				if (this.closed) {
 					return CLOSED;
 				}
@@ -332,7 +332,7 @@ final class SubscriberInputStream extends InputStream implements Subscriber<Data
 		discard(this.available);
 		this.available = null;
 
-		for (;;) {
+		while (true) {
 			int workAmount = this.workAmount.getPlain();
 			DataBuffer value;
 			while ((value = this.queue.poll()) != null) {

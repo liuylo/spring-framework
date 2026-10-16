@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.aot.hint.RuntimeHints;
 import org.springframework.aot.hint.TypeReference;
 import org.springframework.util.Assert;
+import org.springframework.util.ClassUtils;
 
 /**
  * Record of an invocation of a method relevant to {@link org.springframework.aot.hint.RuntimeHints}.
@@ -181,7 +182,7 @@ public final class RecordedInvocation {
 		else {
 			Class<?> instanceType = (getInstance() instanceof Class<?> clazz) ? clazz : getInstance().getClass();
 			return "<%s> invocation of <%s> on type <%s> with arguments %s".formatted(
-					getHintType().hintClassName(), getMethodReference(), instanceType.getCanonicalName(), getArguments());
+					getHintType().hintClassName(), getMethodReference(), ClassUtils.getCanonicalName(instanceType), getArguments());
 		}
 	}
 

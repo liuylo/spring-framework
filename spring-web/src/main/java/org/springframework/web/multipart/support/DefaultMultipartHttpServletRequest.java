@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2021 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,11 +45,9 @@ public class DefaultMultipartHttpServletRequest extends AbstractMultipartHttpSer
 
 	private static final String CONTENT_TYPE = "Content-Type";
 
-	@SuppressWarnings("NullAway.Init")
-	private Map<String, String[]> multipartParameters;
+	private @Nullable Map<String, String[]> multipartParameters;
 
-	@SuppressWarnings("NullAway.Init")
-	private Map<String, String> multipartParameterContentTypes;
+	private @Nullable Map<String, String> multipartParameterContentTypes;
 
 
 	/**
@@ -170,7 +168,7 @@ public class DefaultMultipartHttpServletRequest extends AbstractMultipartHttpSer
 		if (this.multipartParameters == null) {
 			initializeMultipart();
 		}
-		return this.multipartParameters;
+		return (this.multipartParameters != null ? this.multipartParameters : Collections.emptyMap());
 	}
 
 	/**
@@ -190,7 +188,8 @@ public class DefaultMultipartHttpServletRequest extends AbstractMultipartHttpSer
 		if (this.multipartParameterContentTypes == null) {
 			initializeMultipart();
 		}
-		return this.multipartParameterContentTypes;
+		return (this.multipartParameterContentTypes != null ? this.multipartParameterContentTypes :
+				Collections.emptyMap());
 	}
 
 }

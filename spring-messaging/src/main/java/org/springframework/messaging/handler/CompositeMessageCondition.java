@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2021 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,7 +57,7 @@ public class CompositeMessageCondition implements MessageCondition<CompositeMess
 	@SuppressWarnings("unchecked")
 	public <T extends MessageCondition<T>> T getCondition(Class<T> messageConditionType) {
 		for (MessageCondition<?> condition : this.messageConditions) {
-			if (messageConditionType.isAssignableFrom(condition.getClass())) {
+			if (messageConditionType.isInstance(condition)) {
 				return (T) condition;
 			}
 		}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,10 +28,11 @@ import org.jspecify.annotations.Nullable;
  * <p>This type is used by {@link CompositeMap}.
  *
  * @author Arjen Poutsma
+ * @author Yanming Zhou
  * @since 6.2
  * @param <E> the type of elements returned by this iterator
  */
-final class FilteredIterator<E> implements Iterator<E> {
+final class FilteredIterator<E extends @Nullable Object> implements Iterator<E> {
 
 	private final Iterator<E> delegate;
 
@@ -56,12 +57,11 @@ final class FilteredIterator<E> implements Iterator<E> {
 	}
 
 	@Override
-	public E next() {
+	public @Nullable E next() {
 		if (!this.hasNext && !setNext()) {
 			throw new NoSuchElementException();
 		}
 		this.hasNext = false;
-		Assert.state(this.next != null, "Next should not be null");
 		return this.next;
 	}
 

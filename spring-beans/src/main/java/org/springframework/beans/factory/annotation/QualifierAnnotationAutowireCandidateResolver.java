@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,9 +44,10 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.util.ObjectUtils;
 
 /**
- * {@link AutowireCandidateResolver} implementation that matches bean definition qualifiers
- * against {@link Qualifier qualifier annotations} on the field or parameter to be autowired.
- * Also supports suggested expression values through a {@link Value value} annotation.
+ * {@link AutowireCandidateResolver} implementation that matches bean definition
+ * qualifiers against {@link #addQualifierType(Class) qualifier annotations} on
+ * the field or parameter to be autowired. Also supports suggested expression
+ * values through a {@link #setValueAnnotationType(Class) value annotation}.
  *
  * <p>Also supports JSR-330's {@link jakarta.inject.Qualifier} annotation if available.
  *
@@ -68,7 +69,7 @@ public class QualifierAnnotationAutowireCandidateResolver extends GenericTypeAwa
 
 	/**
 	 * Create a new {@code QualifierAnnotationAutowireCandidateResolver} for Spring's
-	 * standard {@link Qualifier} annotation.
+	 * standard {@link Qualifier @Qualifier} annotation.
 	 * <p>Also supports JSR-330's {@link jakarta.inject.Qualifier} annotation if available.
 	 */
 	@SuppressWarnings("unchecked")
@@ -107,11 +108,11 @@ public class QualifierAnnotationAutowireCandidateResolver extends GenericTypeAwa
 	/**
 	 * Register the given type to be used as a qualifier when autowiring.
 	 * <p>This identifies qualifier annotations for direct use (on fields,
-	 * method parameters and constructor parameters) as well as meta
-	 * annotations that in turn identify actual qualifier annotations.
+	 * method parameters and constructor parameters) as well as
+	 * meta-annotations that in turn identify actual qualifier annotations.
 	 * <p>This implementation only supports annotations as qualifier types.
-	 * The default is Spring's {@link Qualifier} annotation which serves
-	 * as a qualifier for direct use and also as a meta annotation.
+	 * The default is Spring's {@link Qualifier @Qualifier} annotation which serves
+	 * as a qualifier for direct use and also as a meta-annotation.
 	 * @param qualifierType the annotation type to register
 	 */
 	public void addQualifierType(Class<? extends Annotation> qualifierType) {
@@ -122,7 +123,7 @@ public class QualifierAnnotationAutowireCandidateResolver extends GenericTypeAwa
 	 * Set the 'value' annotation type, to be used on fields, method parameters
 	 * and constructor parameters.
 	 * <p>The default value annotation type is the Spring-provided
-	 * {@link Value} annotation.
+	 * {@link Value @Value} annotation.
 	 * <p>This setter property exists so that developers can provide their own
 	 * (non-Spring-specific) annotation type to indicate a default value
 	 * expression for a specific argument.
@@ -172,7 +173,6 @@ public class QualifierAnnotationAutowireCandidateResolver extends GenericTypeAwa
 	 * {@code true} if a qualifier has been found and matched,
 	 * {@code null} if no qualifier has been found at all
 	 */
-
 	protected @Nullable Boolean checkQualifiers(BeanDefinitionHolder bdHolder, Annotation[] annotationsToSearch) {
 		boolean qualifierFound = false;
 		if (!ObjectUtils.isEmpty(annotationsToSearch)) {
@@ -291,7 +291,7 @@ public class QualifierAnnotationAutowireCandidateResolver extends GenericTypeAwa
 			}
 		}
 
-		Map<String, Object> attributes = AnnotationUtils.getAnnotationAttributes(annotation);
+		Map<String, @Nullable Object> attributes = AnnotationUtils.getAnnotationAttributes(annotation);
 		if (attributes.isEmpty() && qualifier == null) {
 			// If no attributes, the qualifier must be present
 			return false;
@@ -348,8 +348,20 @@ public class QualifierAnnotationAutowireCandidateResolver extends GenericTypeAwa
 		if (!super.isRequired(descriptor)) {
 			return false;
 		}
-		Autowired autowired = descriptor.getAnnotation(Autowired.class);
-		return (autowired == null || autowired.required());
+
+		for (Annotation ann : descriptor.getAnnotations()) {
+			// Directly present?
+			if (ann instanceof Autowired autowired) {
+				return autowired.required();
+			}
+			// Meta-present?
+			Autowired autowired = AnnotationUtils.findAnnotation(ann.annotationType(), Autowired.class);
+			if (autowired != null) {
+				return autowired.required();
+			}
+		}
+		// No @Autowired annotation present: default to true.
+		return true;
 	}
 
 	/**
@@ -362,6 +374,17 @@ public class QualifierAnnotationAutowireCandidateResolver extends GenericTypeAwa
 		for (Annotation annotation : descriptor.getAnnotations()) {
 			if (isQualifier(annotation.annotationType())) {
 				return true;
+			}
+		}
+		MethodParameter methodParam = descriptor.getMethodParameter();
+		if (methodParam != null) {
+			Method method = methodParam.getMethod();
+			if (method == null || void.class == method.getReturnType()) {
+				for (Annotation annotation : methodParam.getMethodAnnotations()) {
+					if (isQualifier(annotation.annotationType())) {
+						return true;
+					}
+				}
 			}
 		}
 		return false;

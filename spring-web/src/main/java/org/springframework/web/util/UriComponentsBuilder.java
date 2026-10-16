@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,7 +57,7 @@ import org.springframework.web.util.UriComponents.UriTemplateVariables;
  * {@link ParserType#WHAT_WG WhatWG parser type}, based on the algorithm from
  * the WhatWG <a href="https://url.spec.whatwg.org">URL Living Standard</a>
  * provides more lenient handling of a wide range of cases that occur in user
- * types URL's.
+ * typed URLs.
  *
  * @author Arjen Poutsma
  * @author Rossen Stoyanchev
@@ -216,27 +216,6 @@ public class UriComponentsBuilder implements UriBuilder, Cloneable {
 		};
 	}
 
-	/**
-	 * Create a URI components builder from the given HTTP URL String.
-	 * <p><strong>Note:</strong> The presence of reserved characters can prevent
-	 * correct parsing of the URI string. For example if a query parameter
-	 * contains {@code '='} or {@code '&'} characters, the query string cannot
-	 * be parsed unambiguously. Such values should be substituted for URI
-	 * variables to enable correct parsing:
-	 * <pre class="code">
-	 * String urlString = &quot;https://example.com/hotels/42?filter={value}&quot;;
-	 * UriComponentsBuilder.fromHttpUrl(urlString).buildAndExpand(&quot;hot&amp;cold&quot;);
-	 * </pre>
-	 * @param httpUrl the source URI
-	 * @return the URI components of the URI
-	 * @deprecated as of 6.2, in favor of {@link #fromUriString(String)};
-	 * scheduled for removal in 7.0.
-	 */
-	@Deprecated(since = "6.2")
-	public static UriComponentsBuilder fromHttpUrl(String httpUrl) throws InvalidUrlException {
-		return fromUriString(httpUrl);
-	}
-
 
 	// Encode methods
 
@@ -337,17 +316,17 @@ public class UriComponentsBuilder implements UriBuilder, Cloneable {
 	 * @param uriVariableValues the URI variable values
 	 * @return the URI components with expanded values
 	 */
-	public UriComponents buildAndExpand(Object... uriVariableValues) {
+	public UriComponents buildAndExpand(@Nullable Object... uriVariableValues) {
 		return build().expand(uriVariableValues);
 	}
 
 	@Override
-	public URI build(Object... uriVariables) {
+	public URI build(@Nullable Object... uriVariables) {
 		return buildInternal(EncodingHint.ENCODE_TEMPLATE).expand(uriVariables).toUri();
 	}
 
 	@Override
-	public URI build(Map<String, ?> uriVariables) {
+	public URI build(Map<String, ? extends @Nullable Object> uriVariables) {
 		return buildInternal(EncodingHint.ENCODE_TEMPLATE).expand(uriVariables).toUri();
 	}
 
@@ -447,7 +426,9 @@ public class UriComponentsBuilder implements UriBuilder, Cloneable {
 			if (record.path() != null) {
 				path(record.path());
 			}
-			query(record.query());
+			if (record.query() != null) {
+				query(record.query());
+			}
 		}
 		fragment(record.fragment());
 		return this;
@@ -474,7 +455,9 @@ public class UriComponentsBuilder implements UriBuilder, Cloneable {
 				port(record.portString());
 			}
 			path(record.path().toString());
-			query(record.query());
+			if (record.query() != null) {
+				query(record.query());
+			}
 		}
 		if (StringUtils.hasText(record.fragment())) {
 			fragment(record.fragment());
@@ -530,7 +513,7 @@ public class UriComponentsBuilder implements UriBuilder, Cloneable {
 
 	@Override
 	public UriComponentsBuilder port(@Nullable String port) {
-		this.port = port;
+		this.port = (StringUtils.hasText(port) ? port : null);
 		if (port != null) {
 			resetSchemeSpecificPart();
 		}
@@ -562,8 +545,8 @@ public class UriComponentsBuilder implements UriBuilder, Cloneable {
 	}
 
 	@Override
-	public UriComponentsBuilder query(@Nullable String query) {
-		if (query != null) {
+	public UriComponentsBuilder query(String query) {
+		if (StringUtils.hasText(query)) {
 			Matcher matcher = QUERY_PARAM_PATTERN.matcher(query);
 			while (matcher.find()) {
 				String name = matcher.group(1);
@@ -572,9 +555,6 @@ public class UriComponentsBuilder implements UriBuilder, Cloneable {
 				queryParam(name, (value != null ? value : (StringUtils.hasLength(eq) ? "" : null)));
 			}
 			resetSchemeSpecificPart();
-		}
-		else {
-			this.queryParams.clear();
 		}
 		return this;
 	}
@@ -752,7 +732,7 @@ public class UriComponentsBuilder implements UriBuilder, Cloneable {
 	public enum ParserType {
 
 		/**
-		 * This parser type expects URI's to conform to RFC 3986 syntax.
+		 * This parser type expects URIs to conform to RFC 3986 syntax.
 		 */
 		RFC,
 
@@ -760,7 +740,7 @@ public class UriComponentsBuilder implements UriBuilder, Cloneable {
 		 * This parser follows the
 		 * <a href="https://url.spec.whatwg.org/#url-parsing">URL parsing algorithm</a>
 		 * in the WhatWG URL Living standard that browsers implement to align on
-		 * lenient handling of user typed URL's that may not conform to RFC syntax.
+		 * lenient handling of user typed URLs that may not conform to RFC syntax.
 		 * @see <a href="https://url.spec.whatwg.org">URL Living Standard</a>
 		 * @see <a href="https://github.com/web-platform-tests/wpt/tree/master/url">URL tests</a>
 		 */

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package org.springframework.test.context.bean.override.mockito;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Parameter;
 
 import org.jspecify.annotations.Nullable;
 
@@ -39,10 +40,19 @@ abstract class AbstractMockitoBeanOverrideHandler extends BeanOverrideHandler {
 	private final MockReset reset;
 
 
-	protected AbstractMockitoBeanOverrideHandler(Field field, ResolvableType beanType,
-			@Nullable String beanName, BeanOverrideStrategy strategy, @Nullable MockReset reset) {
+	protected AbstractMockitoBeanOverrideHandler(@Nullable Field field, ResolvableType beanType,
+			@Nullable String beanName, String contextName, BeanOverrideStrategy strategy,
+			MockReset reset) {
 
-		super(field, beanType, beanName, strategy);
+		super(field, beanType, beanName, contextName, strategy);
+		this.reset = (reset != null ? reset : MockReset.AFTER);
+	}
+
+	protected AbstractMockitoBeanOverrideHandler(Parameter parameter, ResolvableType beanType,
+			@Nullable String beanName, String contextName, BeanOverrideStrategy strategy,
+			MockReset reset) {
+
+		super(parameter, beanType, beanName, contextName, strategy);
 		this.reset = (reset != null ? reset : MockReset.AFTER);
 	}
 
@@ -57,20 +67,20 @@ abstract class AbstractMockitoBeanOverrideHandler extends BeanOverrideHandler {
 
 	@Override
 	protected void trackOverrideInstance(Object mock, SingletonBeanRegistry trackingBeanRegistry) {
-		getMockitoBeans(trackingBeanRegistry).add(mock);
+		getMockBeans(trackingBeanRegistry).add(mock);
 	}
 
-	private static MockitoBeans getMockitoBeans(SingletonBeanRegistry trackingBeanRegistry) {
-		String beanName = MockitoBeans.class.getName();
-		MockitoBeans mockitoBeans = null;
+	private static MockBeans getMockBeans(SingletonBeanRegistry trackingBeanRegistry) {
+		String beanName = MockBeans.class.getName();
+		MockBeans mockBeans = null;
 		if (trackingBeanRegistry.containsSingleton(beanName)) {
-			mockitoBeans = (MockitoBeans) trackingBeanRegistry.getSingleton(beanName);
+			mockBeans = (MockBeans) trackingBeanRegistry.getSingleton(beanName);
 		}
-		if (mockitoBeans == null) {
-			mockitoBeans = new MockitoBeans();
-			trackingBeanRegistry.registerSingleton(beanName, mockitoBeans);
+		if (mockBeans == null) {
+			mockBeans = new MockBeans();
+			trackingBeanRegistry.registerSingleton(beanName, mockBeans);
 		}
-		return mockitoBeans;
+		return mockBeans;
 	}
 
 	@Override
@@ -91,8 +101,10 @@ abstract class AbstractMockitoBeanOverrideHandler extends BeanOverrideHandler {
 	public String toString() {
 		return new ToStringCreator(this)
 				.append("field", getField())
+				.append("parameter", getParameter())
 				.append("beanType", getBeanType())
 				.append("beanName", getBeanName())
+				.append("contextName", getContextName())
 				.append("strategy", getStrategy())
 				.append("reset", getReset())
 				.toString();

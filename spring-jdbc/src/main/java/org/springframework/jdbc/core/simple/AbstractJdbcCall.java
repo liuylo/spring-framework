@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import javax.sql.DataSource;
 
@@ -65,6 +67,9 @@ public abstract class AbstractJdbcCall {
 
 	/** List of RefCursor/ResultSet RowMapper objects. */
 	private final Map<String, RowMapper<?>> declaredRowMappers = new LinkedHashMap<>();
+
+	/** Lock for the compilation step. */
+	private final Lock compilationLock = new ReentrantLock();
 
 	/**
 	 * Has this operation been compiled? Compilation means at least checking
@@ -243,6 +248,10 @@ public abstract class AbstractJdbcCall {
 	 * @param parameter the {@link SqlParameter} to add
 	 */
 	public void addDeclaredParameter(SqlParameter parameter) {
+		if (isCompiled()) {
+			throw new IllegalStateException("SqlCall for " + (isFunction() ? "function" : "procedure") +
+					" is already compiled");
+		}
 		Assert.notNull(parameter, "The supplied parameter must not be null");
 		if (!StringUtils.hasText(parameter.getName())) {
 			throw new InvalidDataAccessApiUsageException(
@@ -260,6 +269,10 @@ public abstract class AbstractJdbcCall {
 	 * @param rowMapper the RowMapper implementation to use
 	 */
 	public void addDeclaredRowMapper(String parameterName, RowMapper<?> rowMapper) {
+		if (isCompiled()) {
+			throw new IllegalStateException("SqlCall for " + (isFunction() ? "function" : "procedure") +
+					" is already compiled");
+		}
 		this.declaredRowMappers.put(parameterName, rowMapper);
 		if (logger.isDebugEnabled()) {
 			logger.debug("Added row mapper for [" + getProcedureName() + "]: " + parameterName);
@@ -278,23 +291,29 @@ public abstract class AbstractJdbcCall {
 	 * @throws org.springframework.dao.InvalidDataAccessApiUsageException if the object hasn't
 	 * been correctly initialized, for example if no DataSource has been provided
 	 */
-	public final synchronized void compile() throws InvalidDataAccessApiUsageException {
-		if (!isCompiled()) {
-			if (getProcedureName() == null) {
-				throw new InvalidDataAccessApiUsageException("Procedure or Function name is required");
+	public final void compile() throws InvalidDataAccessApiUsageException {
+		this.compilationLock.lock();
+		try {
+			if (!isCompiled()) {
+				if (getProcedureName() == null) {
+					throw new InvalidDataAccessApiUsageException("Procedure or Function name is required");
+				}
+				try {
+					this.jdbcTemplate.afterPropertiesSet();
+				}
+				catch (IllegalArgumentException ex) {
+					throw new InvalidDataAccessApiUsageException(ex.getMessage());
+				}
+				compileInternal();
+				this.compiled = true;
+				if (logger.isDebugEnabled()) {
+					logger.debug("SqlCall for " + (isFunction() ? "function" : "procedure") +
+							" [" + getProcedureName() + "] compiled");
+				}
 			}
-			try {
-				this.jdbcTemplate.afterPropertiesSet();
-			}
-			catch (IllegalArgumentException ex) {
-				throw new InvalidDataAccessApiUsageException(ex.getMessage());
-			}
-			compileInternal();
-			this.compiled = true;
-			if (logger.isDebugEnabled()) {
-				logger.debug("SqlCall for " + (isFunction() ? "function" : "procedure") +
-						" [" + getProcedureName() + "] compiled");
-			}
+		}
+		finally {
+			this.compilationLock.unlock();
 		}
 	}
 
@@ -360,7 +379,7 @@ public abstract class AbstractJdbcCall {
 	 * @param parameterSource parameter names and values to be used in call
 	 * @return a Map of out parameters
 	 */
-	protected Map<String, Object> doExecute(SqlParameterSource parameterSource) {
+	protected Map<String, @Nullable Object> doExecute(SqlParameterSource parameterSource) {
 		checkCompiled();
 		Map<String, Object> params = matchInParameterValuesWithCallParameters(parameterSource);
 		return executeCallInternal(params);
@@ -372,7 +391,7 @@ public abstract class AbstractJdbcCall {
 	 * declared for the stored procedure.
 	 * @return a Map of out parameters
 	 */
-	protected Map<String, Object> doExecute(Object... args) {
+	protected Map<String, @Nullable Object> doExecute(Object... args) {
 		checkCompiled();
 		Map<String, ?> params = matchInParameterValuesWithCallParameters(args);
 		return executeCallInternal(params);
@@ -383,7 +402,7 @@ public abstract class AbstractJdbcCall {
 	 * @param args a Map of parameter name and values
 	 * @return a Map of out parameters
 	 */
-	protected Map<String, Object> doExecute(Map<String, ?> args) {
+	protected Map<String, @Nullable Object> doExecute(Map<String, ?> args) {
 		checkCompiled();
 		Map<String, ?> params = matchInParameterValuesWithCallParameters(args);
 		return executeCallInternal(params);
@@ -392,7 +411,7 @@ public abstract class AbstractJdbcCall {
 	/**
 	 * Delegate method to perform the actual call processing.
 	 */
-	private Map<String, Object> executeCallInternal(Map<String, ?> args) {
+	private Map<String, @Nullable Object> executeCallInternal(Map<String, ?> args) {
 		CallableStatementCreator csc = getCallableStatementFactory().newCallableStatementCreator(args);
 		if (logger.isDebugEnabled()) {
 			logger.debug("The following parameters are used for call " + getCallString() + " with " + args);

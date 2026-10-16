@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2021 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -113,7 +113,7 @@ class CacheAdviceParser extends AbstractSingleBeanDefinitionParser {
 			builder.setUnless(getAttributeValue(opElement, "unless", ""));
 			builder.setSync(Boolean.parseBoolean(getAttributeValue(opElement, "sync", "false")));
 
-			Collection<CacheOperation> col = cacheOpMap.computeIfAbsent(nameHolder, k -> new ArrayList<>(2));
+			Collection<CacheOperation> col = cacheOpMap.computeIfAbsent(nameHolder, key -> new ArrayList<>(2));
 			col.add(builder.build());
 		}
 
@@ -136,7 +136,7 @@ class CacheAdviceParser extends AbstractSingleBeanDefinitionParser {
 				builder.setBeforeInvocation(Boolean.parseBoolean(after.trim()));
 			}
 
-			Collection<CacheOperation> col = cacheOpMap.computeIfAbsent(nameHolder, k -> new ArrayList<>(2));
+			Collection<CacheOperation> col = cacheOpMap.computeIfAbsent(nameHolder, key -> new ArrayList<>(2));
 			col.add(builder.build());
 		}
 
@@ -150,7 +150,7 @@ class CacheAdviceParser extends AbstractSingleBeanDefinitionParser {
 					parserContext.getReaderContext(), new CachePutOperation.Builder());
 			builder.setUnless(getAttributeValue(opElement, "unless", ""));
 
-			Collection<CacheOperation> col = cacheOpMap.computeIfAbsent(nameHolder, k -> new ArrayList<>(2));
+			Collection<CacheOperation> col = cacheOpMap.computeIfAbsent(nameHolder, key -> new ArrayList<>(2));
 			col.add(builder.build());
 		}
 
@@ -222,7 +222,7 @@ class CacheAdviceParser extends AbstractSingleBeanDefinitionParser {
 
 			if (StringUtils.hasText(builder.getKey()) && StringUtils.hasText(builder.getKeyGenerator())) {
 				throw new IllegalStateException("Invalid cache advice configuration on '" +
-						element.toString() + "'. Both 'key' and 'keyGenerator' attributes have been set. " +
+						element + "'. Both 'key' and 'keyGenerator' attributes have been set. " +
 						"These attributes are mutually exclusive: either set the SpEL expression used to" +
 						"compute the key at runtime or set the name of the KeyGenerator bean to use.");
 			}

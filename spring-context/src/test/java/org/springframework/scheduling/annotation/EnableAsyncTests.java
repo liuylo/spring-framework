@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -314,7 +314,7 @@ class EnableAsyncTests {
 	}
 
 	@Test  // SPR-14949
-	public void findOnInterfaceWithInterfaceProxy() {
+	void findOnInterfaceWithInterfaceProxy() {
 		// Arrange
 		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext(Spr14949ConfigA.class);
 		AsyncInterface asyncBean = ctx.getBean(AsyncInterface.class);
@@ -330,7 +330,7 @@ class EnableAsyncTests {
 	}
 
 	@Test  // SPR-14949
-	public void findOnInterfaceWithCglibProxy() {
+	void findOnInterfaceWithCglibProxy() {
 		// Arrange
 		AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext(Spr14949ConfigB.class);
 		AsyncInterface asyncBean = ctx.getBean(AsyncInterface.class);
@@ -347,7 +347,7 @@ class EnableAsyncTests {
 
 	@Test
 	@SuppressWarnings("resource")
-	public void exceptionThrownWithBeanNotOfRequiredTypeRootCause() {
+	void exceptionThrownWithBeanNotOfRequiredTypeRootCause() {
 		assertThatExceptionOfType(Throwable.class).isThrownBy(() ->
 				new AnnotationConfigApplicationContext(JdkProxyConfiguration.class))
 			.withCauseInstanceOf(BeanNotOfRequiredTypeException.class);

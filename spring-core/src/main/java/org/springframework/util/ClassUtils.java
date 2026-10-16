@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,6 +54,8 @@ import java.util.regex.Pattern;
 
 import org.jspecify.annotations.Nullable;
 
+import org.springframework.lang.Contract;
+
 /**
  * Miscellaneous {@code java.lang.Class} utility methods.
  *
@@ -74,12 +76,6 @@ public abstract class ClassUtils {
 	/** Suffix for array class names: {@code "[]"}. */
 	public static final String ARRAY_SUFFIX = "[]";
 
-	/** Prefix for internal array class names: {@code "["}. */
-	private static final String INTERNAL_ARRAY_PREFIX = "[";
-
-	/** Prefix for internal non-primitive array class names: {@code "[L"}. */
-	private static final String NON_PRIMITIVE_ARRAY_PREFIX = "[L";
-
 	/** A reusable empty class array constant. */
 	private static final Class<?>[] EMPTY_CLASS_ARRAY = {};
 
@@ -97,6 +93,12 @@ public abstract class ClassUtils {
 
 	/** The ".class" file suffix. */
 	public static final String CLASS_FILE_SUFFIX = ".class";
+
+	/**
+	 * The ".package-info" suffix for package class names.
+	 * @since 7.0.8
+	 */
+	public static final String PACKAGE_INFO_SUFFIX = ".package-info";
 
 	/** Precomputed value for the combination of private, static and final modifiers. */
 	private static final int NON_OVERRIDABLE_MODIFIER = Modifier.PRIVATE | Modifier.STATIC | Modifier.FINAL;
@@ -252,6 +254,7 @@ public abstract class ClassUtils {
 	 * @param classLoaderToUse the actual ClassLoader to use for the thread context
 	 * @return the original thread context ClassLoader, or {@code null} if not overridden
 	 */
+	@Contract("null -> null")
 	public static @Nullable ClassLoader overrideThreadContextClassLoader(@Nullable ClassLoader classLoaderToUse) {
 		Thread currentThread = Thread.currentThread();
 		ClassLoader threadContextClassLoader = currentThread.getContextClassLoader();
@@ -294,20 +297,6 @@ public abstract class ClassUtils {
 		if (name.endsWith(ARRAY_SUFFIX)) {
 			String elementClassName = name.substring(0, name.length() - ARRAY_SUFFIX.length());
 			Class<?> elementClass = forName(elementClassName, classLoader);
-			return elementClass.arrayType();
-		}
-
-		// "[Ljava.lang.String;" style arrays
-		if (name.startsWith(NON_PRIMITIVE_ARRAY_PREFIX) && name.endsWith(";")) {
-			String elementName = name.substring(NON_PRIMITIVE_ARRAY_PREFIX.length(), name.length() - 1);
-			Class<?> elementClass = forName(elementName, classLoader);
-			return elementClass.arrayType();
-		}
-
-		// "[[I" or "[[Ljava.lang.String;" style arrays
-		if (name.startsWith(INTERNAL_ARRAY_PREFIX)) {
-			String elementName = name.substring(INTERNAL_ARRAY_PREFIX.length());
-			Class<?> elementClass = forName(elementName, classLoader);
 			return elementClass.arrayType();
 		}
 
@@ -406,6 +395,7 @@ public abstract class ClassUtils {
 	 * @param classLoader the ClassLoader to check against
 	 * (can be {@code null} in which case this method will always return {@code true})
 	 */
+	@Contract("_, null -> true")
 	public static boolean isVisible(Class<?> clazz, @Nullable ClassLoader classLoader) {
 		if (classLoader == null) {
 			return true;
@@ -493,6 +483,7 @@ public abstract class ClassUtils {
 	 * @return the primitive class, or {@code null} if the name does not denote
 	 * a primitive class or primitive array class
 	 */
+	@Contract("null -> null")
 	public static @Nullable Class<?> resolvePrimitiveClassName(@Nullable String name) {
 		Class<?> result = null;
 		// Most class names will be quite long, considering that they
@@ -572,6 +563,7 @@ public abstract class ClassUtils {
 	 * @see Void
 	 * @see Void#TYPE
 	 */
+	@Contract("null -> false")
 	public static boolean isVoidType(@Nullable Class<?> type) {
 		return (type == void.class || type == Void.class);
 	}
@@ -634,10 +626,11 @@ public abstract class ClassUtils {
 			Class<?> resolvedPrimitive = primitiveWrapperTypeMap.get(rhsType);
 			return (lhsType == resolvedPrimitive);
 		}
-		else {
+		else if (rhsType.isPrimitive()) {
 			Class<?> resolvedWrapper = primitiveTypeToWrapperMap.get(rhsType);
 			return (resolvedWrapper != null && lhsType.isAssignableFrom(resolvedWrapper));
 		}
+		return false;
 	}
 
 	/**
@@ -880,6 +873,7 @@ public abstract class ClassUtils {
 	 * given classes is {@code null}, the other class will be returned.
 	 * @since 3.2.6
 	 */
+	@Contract("null, _ -> param2; _, null -> param1")
 	public static @Nullable Class<?> determineCommonAncestor(@Nullable Class<?> clazz1, @Nullable Class<?> clazz2) {
 		if (clazz1 == null) {
 			return clazz2;
@@ -958,10 +952,10 @@ public abstract class ClassUtils {
 	 * Check whether the given object is a CGLIB proxy.
 	 * @param object the object to check
 	 * @see org.springframework.aop.support.AopUtils#isCglibProxy(Object)
-	 * @deprecated as of 5.2, in favor of custom (possibly narrower) checks
+	 * @deprecated in favor of custom (possibly narrower) checks
 	 * such as for a Spring AOP proxy
 	 */
-	@Deprecated
+	@Deprecated(since = "5.2")
 	public static boolean isCglibProxy(Object object) {
 		return isCglibProxyClass(object.getClass());
 	}
@@ -970,10 +964,11 @@ public abstract class ClassUtils {
 	 * Check whether the specified class is a CGLIB-generated class.
 	 * @param clazz the class to check
 	 * @see #getUserClass(Class)
-	 * @deprecated as of 5.2, in favor of custom (possibly narrower) checks
+	 * @deprecated in favor of custom (possibly narrower) checks
 	 * or simply a check for containing {@link #CGLIB_CLASS_SEPARATOR}
 	 */
-	@Deprecated
+	@Deprecated(since = "5.2")
+	@Contract("null -> false")
 	public static boolean isCglibProxyClass(@Nullable Class<?> clazz) {
 		return (clazz != null && isCglibProxyClassName(clazz.getName()));
 	}
@@ -982,10 +977,11 @@ public abstract class ClassUtils {
 	 * Check whether the specified class name is a CGLIB-generated class.
 	 * @param className the class name to check
 	 * @see #CGLIB_CLASS_SEPARATOR
-	 * @deprecated as of 5.2, in favor of custom (possibly narrower) checks
+	 * @deprecated in favor of custom (possibly narrower) checks
 	 * or simply a check for containing {@link #CGLIB_CLASS_SEPARATOR}
 	 */
-	@Deprecated
+	@Deprecated(since = "5.2")
+	@Contract("null -> false")
 	public static boolean isCglibProxyClassName(@Nullable String className) {
 		return (className != null && className.contains(CGLIB_CLASS_SEPARATOR));
 	}
@@ -1026,6 +1022,7 @@ public abstract class ClassUtils {
 	 * @param value the value to introspect
 	 * @return the qualified name of the class
 	 */
+	@Contract("null -> null")
 	public static @Nullable String getDescriptiveType(@Nullable Object value) {
 		if (value == null) {
 			return null;
@@ -1049,6 +1046,7 @@ public abstract class ClassUtils {
 	 * @param clazz the class to check
 	 * @param typeName the type name to match
 	 */
+	@Contract("_, null -> false")
 	public static boolean matchesTypeName(Class<?> clazz, @Nullable String typeName) {
 		return (typeName != null &&
 				(typeName.equals(clazz.getTypeName()) || typeName.equals(clazz.getSimpleName())));
@@ -1134,10 +1132,25 @@ public abstract class ClassUtils {
 	}
 
 	/**
+	 * Return the {@linkplain Class#getCanonicalName() canonical name} of the given
+	 * class, or the {@linkplain Class#getTypeName() type name} of the class if the
+	 * canonical name does not exist.
+	 * @param clazz the class
+	 * @return the canonical name of the class, or the type name as a fallback
+	 * @since 7.1
+	 */
+	public static String getCanonicalName(Class<?> clazz) {
+		Assert.notNull(clazz, "Class must not be null");
+		String canonicalName = clazz.getCanonicalName();
+		return (canonicalName != null ? canonicalName : clazz.getTypeName());
+	}
+
+	/**
 	 * Return the qualified name of the given class: usually simply
 	 * the class name, but component type class name + "[]" for arrays.
 	 * @param clazz the class
 	 * @return the qualified name of the class
+	 * @see Class#getTypeName()
 	 */
 	public static String getQualifiedName(Class<?> clazz) {
 		Assert.notNull(clazz, "Class must not be null");
@@ -1407,7 +1420,7 @@ public abstract class ClassUtils {
 	 * @see #getPubliclyAccessibleMethodIfPossible(Method, Class)
 	 * @deprecated in favor of {@link #getInterfaceMethodIfPossible(Method, Class)}
 	 */
-	@Deprecated
+	@Deprecated(since = "5.2")
 	public static Method getInterfaceMethodIfPossible(Method method) {
 		return getInterfaceMethodIfPossible(method, null);
 	}
@@ -1474,17 +1487,16 @@ public abstract class ClassUtils {
 	}
 
 	/**
-	 * Get the first publicly accessible method in the supplied method's type hierarchy that
+	 * Get the closest publicly accessible method in the supplied method's type hierarchy that
 	 * has a method signature equivalent to the supplied method, if possible.
-	 * <p>If the supplied method is {@code public} and declared in a {@code public} type,
-	 * the supplied method will be returned.
-	 * <p>Otherwise, this method recursively searches the class hierarchy and implemented
-	 * interfaces for an equivalent method that is {@code public} and declared in a
-	 * {@code public} type.
-	 * <p>If a publicly accessible equivalent method cannot be found, the supplied method
-	 * will be returned, indicating that no such equivalent method exists. Consequently,
-	 * callers of this method must manually validate the accessibility of the returned method
-	 * if public access is a requirement.
+	 * <p>This method recursively searches the class hierarchy and implemented interfaces for
+	 * an equivalent method that is {@code public}, declared in a {@code public} type, and
+	 * {@linkplain Module#isExported(String, Module) exported} to {@code spring-core}.
+	 * <p>If the supplied method is not {@code public} or is {@code static}, or if a publicly
+	 * accessible equivalent method cannot be found, the supplied method will be returned,
+	 * indicating that no such equivalent method exists. Consequently, callers of this method
+	 * must manually validate the accessibility of the returned method if public access is a
+	 * requirement.
 	 * <p>This is particularly useful for arriving at a public exported type on the Java
 	 * Module System which allows the method to be invoked via reflection without an illegal
 	 * access warning. This is also useful for invoking methods via a public API in bytecode
@@ -1501,16 +1513,24 @@ public abstract class ClassUtils {
 	 */
 	public static Method getPubliclyAccessibleMethodIfPossible(Method method, @Nullable Class<?> targetClass) {
 		Class<?> declaringClass = method.getDeclaringClass();
-		// If the method is not public, we can abort the search immediately; or if the method's
-		// declaring class is public, the method is already publicly accessible.
-		if (!Modifier.isPublic(method.getModifiers()) || Modifier.isPublic(declaringClass.getModifiers())) {
+		// If the method is not public, or it's static, or its declaring class is public and exported
+		// already, we can abort the search immediately (avoiding reflection as well as cache access).
+		if (!Modifier.isPublic(method.getModifiers()) || Modifier.isStatic(method.getModifiers()) ||
+				(Modifier.isPublic(declaringClass.getModifiers()) &&
+						declaringClass.getModule().isExported(declaringClass.getPackageName(), ClassUtils.class.getModule()))) {
 			return method;
 		}
 
 		Method interfaceMethod = getInterfaceMethodIfPossible(method, targetClass, true);
 		// If we found a method in a public interface, return the interface method.
-		if (!interfaceMethod.equals(method)) {
+		if (interfaceMethod != method && interfaceMethod.getDeclaringClass().getModule().isExported(
+				interfaceMethod.getDeclaringClass().getPackageName(), ClassUtils.class.getModule())) {
 			return interfaceMethod;
+		}
+
+		// Bypass cache for java.lang.Object unless it is actually an overridable method declared there.
+		if (declaringClass.getSuperclass() == Object.class && !ReflectionUtils.isObjectMethod(method)) {
+			return method;
 		}
 
 		Method result = publiclyAccessibleMethodCache.computeIfAbsent(method,
@@ -1523,15 +1543,16 @@ public abstract class ClassUtils {
 
 		Class<?> current = declaringClass.getSuperclass();
 		while (current != null) {
-			if (Modifier.isPublic(current.getModifiers())) {
-				try {
-					return current.getDeclaredMethod(methodName, parameterTypes);
-				}
-				catch (NoSuchMethodException ex) {
-					// ignore
-				}
+			Method method = getMethodOrNull(current, methodName, parameterTypes);
+			if (method == null) {
+				break;
 			}
-			current = current.getSuperclass();
+			if (Modifier.isPublic(method.getDeclaringClass().getModifiers()) &&
+					method.getDeclaringClass().getModule().isExported(
+							method.getDeclaringClass().getPackageName(), ClassUtils.class.getModule())) {
+				return method;
+			}
+			current = method.getDeclaringClass().getSuperclass();
 		}
 		return null;
 	}

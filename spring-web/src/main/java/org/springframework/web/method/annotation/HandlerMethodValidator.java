@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import org.springframework.core.ParameterNameDiscoverer;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.MessageCodesResolver;
 import org.springframework.validation.SmartValidator;
+import org.springframework.validation.annotation.ValidationAnnotationUtils;
 import org.springframework.validation.beanvalidation.MethodValidationAdapter;
 import org.springframework.validation.method.MethodValidationResult;
 import org.springframework.validation.method.MethodValidator;
@@ -70,15 +71,17 @@ public final class HandlerMethodValidator implements MethodValidator {
 	}
 
 
+	@SuppressWarnings("removal")
+	@Deprecated(since = "7.0.4", forRemoval = true)
 	@Override
 	public Class<?>[] determineValidationGroups(Object target, Method method) {
-		return this.validationAdapter.determineValidationGroups(target, method);
+		return ValidationAnnotationUtils.determineValidationGroups(target, method);
 	}
 
 	@Override
 	public void applyArgumentValidation(
 			Object target, Method method, MethodParameter @Nullable [] parameters,
-			Object[] arguments, Class<?>[] groups) {
+			@Nullable Object[] arguments, Class<?>[] groups) {
 
 		MethodValidationResult result = validateArguments(target, method, parameters, arguments, groups);
 		if (!result.hasErrors()) {
@@ -110,7 +113,7 @@ public final class HandlerMethodValidator implements MethodValidator {
 	@Override
 	public MethodValidationResult validateArguments(
 			Object target, Method method, MethodParameter @Nullable [] parameters,
-			Object[] arguments, Class<?>[] groups) {
+			@Nullable Object[] arguments, Class<?>[] groups) {
 
 		return this.validationAdapter.validateArguments(target, method, parameters, arguments, groups);
 	}

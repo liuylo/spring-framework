@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,6 +29,17 @@ import org.jspecify.annotations.Nullable;
  * <p>A property accessor can specify an array of
  * {@linkplain #getSpecificTargetClasses() target classes} for which it should be
  * called. See {@link TargetedAccessor} for details.
+ *
+ * <p>SpEL infrastructure may cache a {@code PropertyAccessor} instance on a per-node
+ * basis once it has successfully served a read or write for a given property name and
+ * target type, in order to avoid repeatedly invoking {@link #canRead}/{@link #canWrite}
+ * on every registered accessor for subsequent evaluations of that node. Before reusing
+ * a cached instance, SpEL confirms that it is still registered with the current
+ * {@link EvaluationContext}. Consequently, {@link #canRead}, {@link #canWrite},
+ * {@link #read}, and {@link #write} should behave consistently for a given
+ * {@code (context, target type, name)} combination for as long as the accessor remains
+ * registered with a context, since a change in behavior may not be observed until the
+ * accessor is re-selected from scratch.
  *
  * @author Andy Clement
  * @since 3.0

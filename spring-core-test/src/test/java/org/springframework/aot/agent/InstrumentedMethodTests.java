@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -109,7 +109,7 @@ class InstrumentedMethodTests {
 				.onInstance(String.class).returnValue(String.class.getDeclaredConstructors()).build();
 
 		@BeforeEach
-		public void setup() throws Exception {
+		void setup() throws Exception {
 			this.stringGetConstructor = RecordedInvocation.of(InstrumentedMethod.CLASS_GETCONSTRUCTOR)
 					.onInstance(String.class).withArgument(new Class[0]).returnValue(String.class.getConstructor()).build();
 			this.stringGetDeclaredConstructor = RecordedInvocation.of(InstrumentedMethod.CLASS_GETDECLAREDCONSTRUCTOR)
@@ -154,7 +154,7 @@ class InstrumentedMethodTests {
 		}
 
 		@Test
-		void classGetConstructorsShouldNotMatchWhemMissingTypeHint() {
+		void classGetConstructorsShouldNotMatchWhenMissingTypeHint() {
 			assertThatInvocationDoesNotMatch(InstrumentedMethod.CLASS_GETCONSTRUCTORS, this.stringGetConstructors);
 		}
 

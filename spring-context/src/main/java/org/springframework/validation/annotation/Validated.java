@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2014 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,6 +40,9 @@ import java.lang.annotation.Target;
  * a class-level annotation is nevertheless necessary to trigger method validation
  * for a specific bean to begin with. Can also be used as a meta-annotation on a
  * custom stereotype annotation or a custom group-specific validated annotation.
+ *
+ * <p>This annotation may be used as a <em>meta-annotation</em> to create custom
+ * <em>composed annotations</em>.
  *
  * @author Juergen Hoeller
  * @since 3.1

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -92,8 +92,7 @@ class AnnotationConfigDispatcherServletInitializerTests {
 		((AnnotationConfigWebApplicationContext) wac).refresh();
 
 		assertThat(wac.containsBean("bean")).isTrue();
-		boolean condition = wac.getBean("bean") instanceof MyBean;
-		assertThat(condition).isTrue();
+		assertThat(wac.getBean("bean")).isInstanceOf(MyBean.class);
 
 		assertThat(servletRegistrations).hasSize(1);
 		assertThat(servletRegistrations.get(SERVLET_NAME)).isNotNull();
@@ -161,8 +160,7 @@ class AnnotationConfigDispatcherServletInitializerTests {
 		((AnnotationConfigWebApplicationContext) wac).refresh();
 
 		assertThat(wac.containsBean("bean")).isTrue();
-		boolean condition = wac.getBean("bean") instanceof MyBean;
-		assertThat(condition).isTrue();
+		assertThat(wac.getBean("bean")).isInstanceOf(MyBean.class);
 	}
 
 	@Test

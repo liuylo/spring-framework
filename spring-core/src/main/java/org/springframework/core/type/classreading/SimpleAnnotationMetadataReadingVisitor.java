@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,9 @@
 
 package org.springframework.core.type.classreading;
 
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 import org.jspecify.annotations.Nullable;
@@ -57,7 +59,7 @@ final class SimpleAnnotationMetadataReadingVisitor extends ClassVisitor {
 
 	private final Set<String> memberClassNames = new LinkedHashSet<>(4);
 
-	private final Set<MergedAnnotation<?>> annotations = new LinkedHashSet<>(4);
+	private final List<MergedAnnotation<?>> annotations = new ArrayList<>(4);
 
 	private final Set<MethodMetadata> declaredMethods = new LinkedHashSet<>(4);
 

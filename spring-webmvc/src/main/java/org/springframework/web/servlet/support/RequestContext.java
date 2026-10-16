@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ import org.springframework.web.util.pattern.PathPatternParser;
 
 /**
  * Context holder for request-specific state, like current web application context, current locale,
- * current theme, and potential binding errors. Provides easy access to localized messages and
+ * and potential binding errors. Provides easy access to localized messages and
  * Errors instances.
  *
  * <p>Suitable for exposition to views, and usage within JSP's "useBean" tag, JSP scriptlets, JSTL EL,
@@ -76,23 +76,13 @@ import org.springframework.web.util.pattern.PathPatternParser;
 public class RequestContext {
 
 	/**
-	 * Default theme name used if the RequestContext cannot find a ThemeResolver.
-	 * Only applies to non-DispatcherServlet requests.
-	 * <p>Same as AbstractThemeResolver's default, but not linked in here to avoid package interdependencies.
-	 * @see org.springframework.web.servlet.theme.AbstractThemeResolver#ORIGINAL_DEFAULT_THEME_NAME
-	 * @deprecated as of 6.0, with no direct replacement
-	 */
-	@Deprecated(since = "6.0")
-	public static final String DEFAULT_THEME_NAME = "theme";
-
-	/**
 	 * Request attribute to hold the current web application context for RequestContext usage.
 	 * By default, the DispatcherServlet's context (or the root context as fallback) is exposed.
 	 */
 	public static final String WEB_APPLICATION_CONTEXT_ATTRIBUTE = RequestContext.class.getName() + ".CONTEXT";
 
 
-	protected static final boolean jstlPresent = ClassUtils.isPresent(
+	protected static final boolean JSTL_PRESENT = ClassUtils.isPresent(
 			"jakarta.servlet.jsp.jstl.core.Config", RequestContext.class.getClassLoader());
 
 	private final HttpServletRequest request;
@@ -106,9 +96,6 @@ public class RequestContext {
 	private @Nullable Locale locale;
 
 	private @Nullable TimeZone timeZone;
-
-	@Deprecated
-	private org.springframework.ui.context.@Nullable Theme theme;
 
 	private @Nullable Boolean defaultHtmlEscape;
 
@@ -318,7 +305,7 @@ public class RequestContext {
 	 * @see jakarta.servlet.http.HttpServletRequest#getLocale()
 	 */
 	protected Locale getFallbackLocale() {
-		if (jstlPresent) {
+		if (JSTL_PRESENT) {
 			Locale locale = JstlLocaleResolver.getJstlLocale(getRequest(), getServletContext());
 			if (locale != null) {
 				return locale;
@@ -334,7 +321,7 @@ public class RequestContext {
 	 * @return the fallback time zone (or {@code null} if none derivable from the request)
 	 */
 	protected @Nullable TimeZone getFallbackTimeZone() {
-		if (jstlPresent) {
+		if (JSTL_PRESENT) {
 			TimeZone timeZone = JstlLocaleResolver.getJstlTimeZone(getRequest(), getServletContext());
 			if (timeZone != null) {
 				return timeZone;
@@ -379,80 +366,6 @@ public class RequestContext {
 	}
 
 	/**
-	 * Return the current theme (never {@code null}).
-	 * <p>Resolved lazily for more efficiency when theme support is not being used.
-	 * @deprecated as of 6.0, with no direct replacement
-	 */
-	@Deprecated(since = "6.0")
-	public org.springframework.ui.context.Theme getTheme() {
-		if (this.theme == null) {
-			// Lazily determine theme to use for this RequestContext.
-			this.theme = RequestContextUtils.getTheme(this.request);
-			if (this.theme == null) {
-				// No ThemeResolver and ThemeSource available -> try fallback.
-				this.theme = getFallbackTheme();
-			}
-		}
-		return this.theme;
-	}
-
-	/**
-	 * Determine the fallback theme for this context.
-	 * <p>The default implementation returns the default theme (with name "theme").
-	 * @return the fallback theme (never {@code null})
-	 * @deprecated as of 6.0, with no direct replacement
-	 */
-	@Deprecated
-	protected org.springframework.ui.context.Theme getFallbackTheme() {
-		org.springframework.ui.context.ThemeSource themeSource = RequestContextUtils.getThemeSource(getRequest());
-		if (themeSource == null) {
-			themeSource = new org.springframework.ui.context.support.ResourceBundleThemeSource();
-		}
-		org.springframework.ui.context.Theme theme = themeSource.getTheme(DEFAULT_THEME_NAME);
-		if (theme == null) {
-			throw new IllegalStateException("No theme defined and no fallback theme found");
-		}
-		return theme;
-	}
-
-	/**
-	 * Change the current theme to the specified one,
-	 * storing the new theme name through the configured
-	 * {@link org.springframework.web.servlet.ThemeResolver ThemeResolver}.
-	 * @param theme the new theme
-	 * @see org.springframework.web.servlet.ThemeResolver#setThemeName
-	 * @deprecated as of 6.0, with no direct replacement
-	 */
-	@Deprecated(since = "6.0")
-	public void changeTheme(org.springframework.ui.context.@Nullable Theme theme) {
-		org.springframework.web.servlet.ThemeResolver themeResolver = RequestContextUtils.getThemeResolver(this.request);
-		if (themeResolver == null) {
-			throw new IllegalStateException("Cannot change theme if no ThemeResolver configured");
-		}
-		themeResolver.setThemeName(this.request, this.response, (theme != null ? theme.getName() : null));
-		this.theme = theme;
-	}
-
-	/**
-	 * Change the current theme to the specified theme by name,
-	 * storing the new theme name through the configured
-	 * {@link org.springframework.web.servlet.ThemeResolver ThemeResolver}.
-	 * @param themeName the name of the new theme
-	 * @see org.springframework.web.servlet.ThemeResolver#setThemeName
-	 * @deprecated as of 6.0, with no direct replacement
-	 */
-	@Deprecated
-	public void changeTheme(String themeName) {
-		org.springframework.web.servlet.ThemeResolver themeResolver = RequestContextUtils.getThemeResolver(this.request);
-		if (themeResolver == null) {
-			throw new IllegalStateException("Cannot change theme if no ThemeResolver configured");
-		}
-		themeResolver.setThemeName(this.request, this.response, themeName);
-		// Ask for re-resolution on next getTheme call.
-		this.theme = null;
-	}
-
-	/**
 	 * (De)activate default HTML escaping for messages and errors, for the scope of this RequestContext.
 	 * <p>The default is the application-wide setting (the "defaultHtmlEscape" context-param in web.xml).
 	 * @see org.springframework.web.util.WebUtils#getDefaultHtmlEscape
@@ -479,7 +392,7 @@ public class RequestContext {
 	/**
 	 * Is HTML escaping using the response encoding by default?
 	 * If enabled, only XML markup significant characters will be escaped with UTF-* encodings.
-	 * <p>Falls back to {@code true} in case of no explicit default given, as of Spring 4.2.
+	 * <p>Falls back to {@code true} in case of no explicit default given.
 	 * @since 4.1.2
 	 */
 	public boolean isResponseEncodedHtmlEscape() {
@@ -729,112 +642,6 @@ public class RequestContext {
 	public String getMessage(MessageSourceResolvable resolvable, boolean htmlEscape) throws NoSuchMessageException {
 		String msg = getMessageSource().getMessage(resolvable, getLocale());
 		return (htmlEscape ? HtmlUtils.htmlEscape(msg) : msg);
-	}
-
-	/**
-	 * Retrieve the theme message for the given code.
-	 * <p>Note that theme messages are never HTML-escaped, as they typically denote
-	 * theme-specific resource paths and not client-visible messages.
-	 * @param code the code of the message
-	 * @param defaultMessage the String to return if the lookup fails
-	 * @return the message
-	 * @deprecated as of 6.0, with no direct replacement
-	 */
-	@Deprecated
-	public String getThemeMessage(String code, String defaultMessage) {
-		String msg = getTheme().getMessageSource().getMessage(code, null, defaultMessage, getLocale());
-		return (msg != null ? msg : "");
-	}
-
-	/**
-	 * Retrieve the theme message for the given code.
-	 * <p>Note that theme messages are never HTML-escaped, as they typically denote
-	 * theme-specific resource paths and not client-visible messages.
-	 * @param code the code of the message
-	 * @param args arguments for the message, or {@code null} if none
-	 * @param defaultMessage the String to return if the lookup fails
-	 * @return the message
-	 * @deprecated as of 6.0, with no direct replacement
-	 */
-	@Deprecated
-	public String getThemeMessage(String code, Object @Nullable [] args, String defaultMessage) {
-		String msg = getTheme().getMessageSource().getMessage(code, args, defaultMessage, getLocale());
-		return (msg != null ? msg : "");
-	}
-
-	/**
-	 * Retrieve the theme message for the given code.
-	 * <p>Note that theme messages are never HTML-escaped, as they typically denote
-	 * theme-specific resource paths and not client-visible messages.
-	 * @param code the code of the message
-	 * @param args arguments for the message as a List, or {@code null} if none
-	 * @param defaultMessage the String to return if the lookup fails
-	 * @return the message
-	 * @deprecated as of 6.0, with no direct replacement
-	 */
-	@Deprecated
-	public String getThemeMessage(String code, @Nullable List<?> args, String defaultMessage) {
-		String msg = getTheme().getMessageSource().getMessage(code, (args != null ? args.toArray() : null),
-				defaultMessage, getLocale());
-		return (msg != null ? msg : "");
-	}
-
-	/**
-	 * Retrieve the theme message for the given code.
-	 * <p>Note that theme messages are never HTML-escaped, as they typically denote
-	 * theme-specific resource paths and not client-visible messages.
-	 * @param code the code of the message
-	 * @return the message
-	 * @throws org.springframework.context.NoSuchMessageException if not found
-	 * @deprecated as of 6.0, with no direct replacement
-	 */
-	@Deprecated
-	public String getThemeMessage(String code) throws NoSuchMessageException {
-		return getTheme().getMessageSource().getMessage(code, null, getLocale());
-	}
-
-	/**
-	 * Retrieve the theme message for the given code.
-	 * <p>Note that theme messages are never HTML-escaped, as they typically denote
-	 * theme-specific resource paths and not client-visible messages.
-	 * @param code the code of the message
-	 * @param args arguments for the message, or {@code null} if none
-	 * @return the message
-	 * @throws org.springframework.context.NoSuchMessageException if not found
-	 * @deprecated as of 6.0, with no direct replacement
-	 */
-	@Deprecated
-	public String getThemeMessage(String code, Object @Nullable [] args) throws NoSuchMessageException {
-		return getTheme().getMessageSource().getMessage(code, args, getLocale());
-	}
-
-	/**
-	 * Retrieve the theme message for the given code.
-	 * <p>Note that theme messages are never HTML-escaped, as they typically denote
-	 * theme-specific resource paths and not client-visible messages.
-	 * @param code the code of the message
-	 * @param args arguments for the message as a List, or {@code null} if none
-	 * @return the message
-	 * @throws org.springframework.context.NoSuchMessageException if not found
-	 * @deprecated as of 6.0, with no direct replacement
-	 */
-	@Deprecated
-	public String getThemeMessage(String code, @Nullable List<?> args) throws NoSuchMessageException {
-		return getTheme().getMessageSource().getMessage(code, (args != null ? args.toArray() : null), getLocale());
-	}
-
-	/**
-	 * Retrieve the given MessageSourceResolvable in the current theme.
-	 * <p>Note that theme messages are never HTML-escaped, as they typically denote
-	 * theme-specific resource paths and not client-visible messages.
-	 * @param resolvable the MessageSourceResolvable
-	 * @return the message
-	 * @throws org.springframework.context.NoSuchMessageException if not found
-	 * @deprecated as of 6.0, with no direct replacement
-	 */
-	@Deprecated
-	public String getThemeMessage(MessageSourceResolvable resolvable) throws NoSuchMessageException {
-		return getTheme().getMessageSource().getMessage(resolvable, getLocale());
 	}
 
 	/**

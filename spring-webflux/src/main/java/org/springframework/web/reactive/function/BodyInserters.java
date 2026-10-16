@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -98,7 +98,8 @@ public abstract class BodyInserters {
 	public static <T> BodyInserter<T, ReactiveHttpOutputMessage> fromValue(T body) {
 		Assert.notNull(body, "'body' must not be null");
 		Assert.isNull(registry.getAdapter(body.getClass()),
-				"'body' should be an object, for reactive types use a variant specifying a publisher/producer and its related element type");
+				"'body' should not be a reactive type. " +
+						"For reactive types use a variant with a publisher/producer and the element type");
 		return (message, context) ->
 				writeWithMessageWriters(message, context, Mono.just(body), ResolvableType.forInstance(body), null);
 	}
@@ -124,30 +125,12 @@ public abstract class BodyInserters {
 		Assert.notNull(body, "'body' must not be null");
 		Assert.notNull(bodyType, "'bodyType' must not be null");
 		Assert.isNull(registry.getAdapter(body.getClass()),
-				"'body' should be an object, for reactive types use a variant specifying a publisher/producer and its related element type");
+				"'body' should not be a reactive type. " +
+						"For reactive types use a variant with a publisher/producer and the element type");
+		ResolvableType bodyTypeToUse = (bodyType.getType().equals(Object.class) ?
+				ResolvableType.forInstance(body) : ResolvableType.forType(bodyType));
 		return (message, context) ->
-				writeWithMessageWriters(message, context, Mono.just(body), ResolvableType.forType(bodyType), null);
-	}
-
-	/**
-	 * Inserter to write the given object.
-	 * <p>Alternatively, consider using the {@code bodyValue(Object)} shortcuts on
-	 * {@link org.springframework.web.reactive.function.client.WebClient WebClient} and
-	 * {@link org.springframework.web.reactive.function.server.ServerResponse ServerResponse}.
-	 * @param body the body to write to the response
-	 * @param <T> the type of the body
-	 * @return the inserter to write a single object
-	 * @throws IllegalArgumentException if {@code body} is a {@link Publisher} or an
-	 * instance of a type supported by {@link ReactiveAdapterRegistry#getSharedInstance()},
-	 * for which {@link #fromPublisher(Publisher, Class)} or
-	 * {@link #fromProducer(Object, Class)} should be used.
-	 * @see #fromPublisher(Publisher, Class)
-	 * @see #fromProducer(Object, Class)
-	 * @deprecated As of Spring Framework 5.2, in favor of {@link #fromValue(Object)}
-	 */
-	@Deprecated
-	public static <T> BodyInserter<T, ReactiveHttpOutputMessage> fromObject(T body) {
-		return fromValue(body);
+				writeWithMessageWriters(message, context, Mono.just(body), bodyTypeToUse, null);
 	}
 
 	/**
@@ -262,7 +245,7 @@ public abstract class BodyInserters {
 	 * @param eventsPublisher the {@code ServerSentEvent} publisher to write to the response body
 	 * @param <T> the type of the data elements in the {@link ServerSentEvent}
 	 * @return the inserter to write a {@code ServerSentEvent} publisher
-	 * @see <a href="https://www.w3.org/TR/eventsource/">Server-Sent Events W3C recommendation</a>
+	 * @see <a href="https://html.spec.whatwg.org/multipage/server-sent-events.html">Server-Sent Events</a>
 	 */
 	// Parameterized for server-side use
 	public static <T, S extends Publisher<ServerSentEvent<T>>> BodyInserter<S, ServerHttpResponse> fromServerSentEvents(

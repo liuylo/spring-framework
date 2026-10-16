@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -133,7 +133,7 @@ public abstract class AbstractHtmlElementBodyTag extends AbstractHtmlElementTag 
 	}
 
 	/**
-	 * The user customised the output of the error messages - flush the
+	 * The user customized the output of the error messages - flush the
 	 * buffered content into the main {@link jakarta.servlet.jsp.JspWriter}.
 	 */
 	protected void flushBufferedBodyContent(BodyContent bodyContent) throws JspException {

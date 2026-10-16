@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,7 +28,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
 import jakarta.jms.Connection;
 import jakarta.jms.ConnectionFactory;
@@ -106,7 +105,7 @@ public class CachingConnectionFactory extends SingleConnectionFactory {
 
 	private volatile boolean active = true;
 
-	private final ConcurrentMap<Integer, Deque<Session>> cachedSessions = new ConcurrentHashMap<>();
+	private final Map<Integer, Deque<Session>> cachedSessions = new ConcurrentHashMap<>();
 
 
 	/**
@@ -114,7 +113,6 @@ public class CachingConnectionFactory extends SingleConnectionFactory {
 	 * @see #setTargetConnectionFactory
 	 */
 	public CachingConnectionFactory() {
-		super();
 		setReconnectOnException(true);
 	}
 
@@ -245,7 +243,7 @@ public class CachingConnectionFactory extends SingleConnectionFactory {
 			return null;
 		}
 
-		Deque<Session> sessionList = this.cachedSessions.computeIfAbsent(mode, k -> new ArrayDeque<>());
+		Deque<Session> sessionList = this.cachedSessions.computeIfAbsent(mode, key -> new ArrayDeque<>());
 		Session session = null;
 		synchronized (sessionList) {
 			if (!sessionList.isEmpty()) {

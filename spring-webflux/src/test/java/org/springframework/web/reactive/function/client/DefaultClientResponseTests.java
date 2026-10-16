@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.reactive.ClientHttpResponse;
 import org.springframework.http.codec.DecoderHttpMessageReader;
-import org.springframework.http.codec.json.Jackson2JsonDecoder;
+import org.springframework.http.codec.json.JacksonJsonDecoder;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
@@ -190,7 +190,6 @@ class DefaultClientResponseTests {
 	}
 
 	@Test
-	@SuppressWarnings("deprecation")
 	void toEntity() {
 		byte[] bytes = "foo".getBytes(StandardCharsets.UTF_8);
 		DataBuffer dataBuffer = DefaultDataBufferFactory.sharedInstance.wrap(bytes);
@@ -202,12 +201,10 @@ class DefaultClientResponseTests {
 		ResponseEntity<String> result = defaultClientResponse.toEntity(String.class).block();
 		assertThat(result.getBody()).isEqualTo("foo");
 		assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
-		assertThat(result.getStatusCodeValue()).isEqualTo(HttpStatus.OK.value());
 		assertThat(result.getHeaders().getContentType()).isEqualTo(MediaType.TEXT_PLAIN);
 	}
 
 	@Test
-	@SuppressWarnings("deprecation")
 	void toEntityWithUnknownStatusCode() {
 		byte[] bytes = "foo".getBytes(StandardCharsets.UTF_8);
 		DataBuffer dataBuffer = DefaultDataBufferFactory.sharedInstance.wrap(bytes);
@@ -222,13 +219,11 @@ class DefaultClientResponseTests {
 
 		ResponseEntity<String> result = defaultClientResponse.toEntity(String.class).block();
 		assertThat(result.getBody()).isEqualTo("foo");
-		assertThat(result.getStatusCode()).isEqualTo(HttpStatusCode.valueOf(999));
-		assertThat(result.getStatusCodeValue()).isEqualTo(999);
+		assertThat(result.getStatusCode().value()).isEqualTo(999);
 		assertThat(result.getHeaders().getContentType()).isEqualTo(MediaType.TEXT_PLAIN);
 	}
 
 	@Test
-	@SuppressWarnings("deprecation")
 	void toEntityTypeReference() {
 		byte[] bytes = "foo".getBytes(StandardCharsets.UTF_8);
 		DataBuffer dataBuffer = DefaultDataBufferFactory.sharedInstance.wrap(bytes);
@@ -240,12 +235,10 @@ class DefaultClientResponseTests {
 		ResponseEntity<String> result = defaultClientResponse.toEntity(STRING_TYPE).block();
 		assertThat(result.getBody()).isEqualTo("foo");
 		assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
-		assertThat(result.getStatusCodeValue()).isEqualTo(HttpStatus.OK.value());
 		assertThat(result.getHeaders().getContentType()).isEqualTo(MediaType.TEXT_PLAIN);
 	}
 
 	@Test
-	@SuppressWarnings("deprecation")
 	void toEntityList() {
 		byte[] bytes = "foo".getBytes(StandardCharsets.UTF_8);
 		DataBuffer dataBuffer = DefaultDataBufferFactory.sharedInstance.wrap(bytes);
@@ -257,12 +250,10 @@ class DefaultClientResponseTests {
 		ResponseEntity<List<String>> result = defaultClientResponse.toEntityList(String.class).block();
 		assertThat(result.getBody()).containsExactly("foo");
 		assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
-		assertThat(result.getStatusCodeValue()).isEqualTo(HttpStatus.OK.value());
 		assertThat(result.getHeaders().getContentType()).isEqualTo(MediaType.TEXT_PLAIN);
 	}
 
 	@Test
-	@SuppressWarnings("deprecation")
 	void toEntityListWithUnknownStatusCode() {
 		byte[] bytes = "foo".getBytes(StandardCharsets.UTF_8);
 		DataBuffer dataBuffer = DefaultDataBufferFactory.sharedInstance.wrap(bytes);
@@ -278,12 +269,10 @@ class DefaultClientResponseTests {
 		ResponseEntity<List<String>> result = defaultClientResponse.toEntityList(String.class).block();
 		assertThat(result.getBody()).containsExactly("foo");
 		assertThat(result.getStatusCode()).isEqualTo(HttpStatusCode.valueOf(999));
-		assertThat(result.getStatusCodeValue()).isEqualTo(999);
 		assertThat(result.getHeaders().getContentType()).isEqualTo(MediaType.TEXT_PLAIN);
 	}
 
 	@Test
-	@SuppressWarnings("deprecation")
 	void toEntityListTypeReference() {
 		byte[] bytes = "foo".getBytes(StandardCharsets.UTF_8);
 		DataBuffer dataBuffer = DefaultDataBufferFactory.sharedInstance.wrap(bytes);
@@ -296,7 +285,6 @@ class DefaultClientResponseTests {
 		ResponseEntity<List<String>> result = defaultClientResponse.toEntityList(STRING_TYPE).block();
 		assertThat(result.getBody()).containsExactly("foo");
 		assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
-		assertThat(result.getStatusCodeValue()).isEqualTo(HttpStatus.OK.value());
 		assertThat(result.getHeaders().getContentType()).isEqualTo(MediaType.TEXT_PLAIN);
 	}
 
@@ -338,7 +326,7 @@ class DefaultClientResponseTests {
 		WebClientResponseException exception = resultMono.block();
 		assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
 		assertThat(exception.getMessage()).isEqualTo("404 Not Found from UNKNOWN https://example.org:9999/app/path");
-		assertThat(exception.getHeaders().asMultiValueMap()).containsExactly(entry("Content-Type", List.of("text/plain")));
+		assertThat(exception.getHeaders().containsHeaderValue("Content-Type", "text/plain")).isTrue();
 		assertThat(exception.getResponseBodyAsByteArray()).isEqualTo(bytes);
 	}
 
@@ -354,7 +342,7 @@ class DefaultClientResponseTests {
 
 		given(mockExchangeStrategies.messageReaders()).willReturn(List.of(
 				new DecoderHttpMessageReader<>(new ByteArrayDecoder()),
-				new DecoderHttpMessageReader<>(new Jackson2JsonDecoder())));
+				new DecoderHttpMessageReader<>(new JacksonJsonDecoder())));
 
 		WebClientResponseException ex = defaultClientResponse.createException().block();
 		assertThat(ex.getResponseBodyAs(Map.class)).containsExactly(entry("name", "Jason"));
@@ -372,7 +360,7 @@ class DefaultClientResponseTests {
 
 		given(mockExchangeStrategies.messageReaders()).willReturn(List.of(
 				new DecoderHttpMessageReader<>(new ByteArrayDecoder()),
-				new DecoderHttpMessageReader<>(new Jackson2JsonDecoder())));
+				new DecoderHttpMessageReader<>(new JacksonJsonDecoder())));
 
 		WebClientResponseException ex = defaultClientResponse.createException().block();
 		assertThat(ex.getResponseBodyAs(Map.class)).isNull();
@@ -397,7 +385,7 @@ class DefaultClientResponseTests {
 					WebClientResponseException exception = (WebClientResponseException) t;
 					assertThat(exception.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
 					assertThat(exception.getMessage()).isEqualTo("404 Not Found");
-					assertThat(exception.getHeaders().asMultiValueMap()).containsExactly(entry("Content-Type",List.of("text/plain")));
+					assertThat(exception.getHeaders().containsHeaderValue("Content-Type", "text/plain")).isTrue();
 					assertThat(exception.getResponseBodyAsByteArray()).isEqualTo(bytes);
 				})
 				.verify();

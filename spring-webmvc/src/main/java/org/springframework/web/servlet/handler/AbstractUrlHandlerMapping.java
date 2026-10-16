@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -61,7 +61,8 @@ import org.springframework.web.util.pattern.PathPatternParser;
  * @author Arjen Poutsma
  * @since 16.04.2003
  */
-public abstract class AbstractUrlHandlerMapping extends AbstractHandlerMapping implements MatchableHandlerMapping {
+@SuppressWarnings("removal")
+public abstract class AbstractUrlHandlerMapping extends AbstractHandlerMapping {
 
 	private @Nullable Object rootHandler;
 
@@ -70,6 +71,14 @@ public abstract class AbstractUrlHandlerMapping extends AbstractHandlerMapping i
 	private final Map<String, Object> handlerMap = new LinkedHashMap<>();
 
 	private final Map<PathPattern, Object> pathPatternHandlerMap = new LinkedHashMap<>();
+
+	/**
+	 * Handler for "/*", to be checked after all other handlers.
+	 * Effectively similar to {@link #getDefaultHandler}, but processed at our level,
+	 * within {@link #getHandlerInternal} where the request is available.
+	 * @see org.springframework.web.socket.server.support.WebSocketHandlerMapping
+	 */
+	private @Nullable Object wildcardHandler;
 
 
 	@Override
@@ -165,9 +174,9 @@ public abstract class AbstractUrlHandlerMapping extends AbstractHandlerMapping i
 			}
 			else if (urlPath.equals("/*")) {
 				if (logger.isTraceEnabled()) {
-					logger.trace("Default mapping to " + getHandlerDescription(handler));
+					logger.trace("Wildcard mapping to " + getHandlerDescription(handler));
 				}
-				setDefaultHandler(resolvedHandler);
+				this.wildcardHandler = resolvedHandler;
 			}
 			else {
 				this.handlerMap.put(urlPath, resolvedHandler);
@@ -196,9 +205,9 @@ public abstract class AbstractUrlHandlerMapping extends AbstractHandlerMapping i
 		}
 		else if (urlPath.equals("/*")) {
 			if (logger.isTraceEnabled()) {
-				logger.trace("Removing default mapping: " + getDefaultHandler());
+				logger.trace("Removing wildcard mapping: " + getDefaultHandler());
 			}
-			setDefaultHandler(null);
+			this.wildcardHandler = null;
 		}
 		else {
 			Object mappedHandler = this.handlerMap.get(urlPath);
@@ -246,6 +255,9 @@ public abstract class AbstractUrlHandlerMapping extends AbstractHandlerMapping i
 			Object rawHandler = null;
 			if (StringUtils.matchesCharacter(lookupPath, '/')) {
 				rawHandler = getRootHandler();
+			}
+			if (rawHandler == null) {
+				rawHandler = this.wildcardHandler;
 			}
 			if (rawHandler == null) {
 				rawHandler = getDefaultHandler();
@@ -307,7 +319,7 @@ public abstract class AbstractUrlHandlerMapping extends AbstractHandlerMapping i
 		pathWithinMapping = UrlPathHelper.defaultInstance.removeSemicolonContent(pathWithinMapping);
 		PathPattern.PathMatchInfo pathMatchInfo = pattern.matchAndExtract(path);
 		Map<String, String> uriVariables = (pathMatchInfo != null ? pathMatchInfo.getUriVariables(): null);
-		return buildPathExposingHandler(handler, pattern.getPatternString(), pathWithinMapping, uriVariables);
+		return buildPathExposingHandler(handler, pattern, pathWithinMapping, uriVariables);
 	}
 
 	/**
@@ -371,7 +383,7 @@ public abstract class AbstractUrlHandlerMapping extends AbstractHandlerMapping i
 					uriTemplateVariables.putAll(decodedVars);
 				}
 			}
-			if (logger.isTraceEnabled() && uriTemplateVariables.size() > 0) {
+			if (logger.isTraceEnabled() && !uriTemplateVariables.isEmpty()) {
 				logger.trace("URI variables " + uriTemplateVariables);
 			}
 			return buildPathExposingHandler(handler, bestMatch, pathWithinMapping, uriTemplateVariables);
@@ -407,12 +419,14 @@ public abstract class AbstractUrlHandlerMapping extends AbstractHandlerMapping i
 
 	/**
 	 * Build a handler object for the given raw handler, exposing the actual
-	 * handler, the {@link #PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE}, as well as
+	 * handler, the {@link #PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE},
+	 * the {@link #BEST_MATCHING_PATTERN_ATTRIBUTE}, as well as
 	 * the {@link #URI_TEMPLATE_VARIABLES_ATTRIBUTE} before executing the handler.
 	 * <p>The default implementation builds a {@link HandlerExecutionChain}
 	 * with a special interceptor that exposes the path attribute and URI
 	 * template variables
 	 * @param rawHandler the raw handler to expose
+	 * @param bestMatchingPattern the {@linkplain HandlerMapping#BEST_MATCHING_PATTERN_ATTRIBUTE best matching pattern}
 	 * @param pathWithinMapping the path to expose before executing the handler
 	 * @param uriTemplateVariables the URI template variables, can be {@code null} if no variables found
 	 * @return the final handler object
@@ -429,7 +443,32 @@ public abstract class AbstractUrlHandlerMapping extends AbstractHandlerMapping i
 	}
 
 	/**
+	 * Build a handler object for the given raw handler, exposing the actual
+	 * handler, the {@link #PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE},
+	 * the {@link #BEST_MATCHING_PATH_PATTERN_ATTRIBUTE}
+	 * the {@link #BEST_MATCHING_PATTERN_ATTRIBUTE}, as well as
+	 * the {@link #URI_TEMPLATE_VARIABLES_ATTRIBUTE} before executing the handler.
+	 * @param rawHandler the raw handler to expose
+	 * @param bestMatchingPattern the {@linkplain HandlerMapping#BEST_MATCHING_PATH_PATTERN_ATTRIBUTE best matching pattern}
+	 * @param pathWithinMapping the path to expose before executing the handler
+	 * @param uriTemplateVariables the URI template variables, can be {@code null} if no variables found
+	 * @return the final handler object
+	 * @since 7.1
+	 */
+	protected Object buildPathExposingHandler(Object rawHandler, PathPattern bestMatchingPattern,
+			String pathWithinMapping, @Nullable Map<String, String> uriTemplateVariables) {
+
+		HandlerExecutionChain chain = new HandlerExecutionChain(rawHandler);
+		chain.addInterceptor(new PathExposingHandlerInterceptor(bestMatchingPattern, pathWithinMapping));
+		if (!CollectionUtils.isEmpty(uriTemplateVariables)) {
+			chain.addInterceptor(new UriTemplateVariablesHandlerInterceptor(uriTemplateVariables));
+		}
+		return chain;
+	}
+
+	/**
 	 * Expose the path within the current mapping as request attribute.
+	 * @param bestMatchingPattern the best matching pattern
 	 * @param pathWithinMapping the path within the current mapping
 	 * @param request the request to expose the path to
 	 * @see #PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE
@@ -444,6 +483,22 @@ public abstract class AbstractUrlHandlerMapping extends AbstractHandlerMapping i
 	}
 
 	/**
+	 * Expose the path within the current mapping as request attribute.
+	 * @param bestMatchingPattern the best matching pattern
+	 * @param pathWithinMapping the path within the current mapping
+	 * @param request the request to expose the path to
+	 * @since 7.1
+	 * @see #PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE
+	 * @see #BEST_MATCHING_PATH_PATTERN_ATTRIBUTE
+	 */
+	protected void exposePathWithinMapping(PathPattern bestMatchingPattern, String pathWithinMapping,
+			HttpServletRequest request) {
+
+		request.setAttribute(BEST_MATCHING_PATH_PATTERN_ATTRIBUTE, bestMatchingPattern);
+		exposePathWithinMapping(bestMatchingPattern.getPatternString(), pathWithinMapping, request);
+	}
+
+	/**
 	 * Expose the URI templates variables as request attribute.
 	 * @param uriTemplateVariables the URI template variables
 	 * @param request the request to expose the path to
@@ -452,19 +507,6 @@ public abstract class AbstractUrlHandlerMapping extends AbstractHandlerMapping i
 	protected void exposeUriTemplateVariables(Map<String, String> uriTemplateVariables, HttpServletRequest request) {
 		request.setAttribute(URI_TEMPLATE_VARIABLES_ATTRIBUTE, uriTemplateVariables);
 	}
-
-	@SuppressWarnings("removal")
-	@Override
-	@Deprecated(since = "7.0", forRemoval = true)
-	public @Nullable RequestMatchResult match(HttpServletRequest request, String pattern) {
-		Assert.state(getPatternParser() == null, "This HandlerMapping uses PathPatterns.");
-		String lookupPath = UrlPathHelper.getResolvedLookupPath(request);
-		if (getPathMatcher().match(pattern, lookupPath)) {
-			return new RequestMatchResult(pattern, lookupPath, getPathMatcher());
-		}
-		return null;
-	}
-
 
 	/**
 	 * Return the handler mappings as a read-only Map, with the registered path
@@ -496,23 +538,39 @@ public abstract class AbstractUrlHandlerMapping extends AbstractHandlerMapping i
 
 	/**
 	 * Special interceptor for exposing the
-	 * {@link AbstractUrlHandlerMapping#PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE} attribute.
+	 * {@link AbstractUrlHandlerMapping#PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE} and,
+	 * when parsed patterns are in use, the
+	 * {@link AbstractUrlHandlerMapping#BEST_MATCHING_PATH_PATTERN_ATTRIBUTE} attribute.
 	 * @see AbstractUrlHandlerMapping#exposePathWithinMapping
 	 */
 	private class PathExposingHandlerInterceptor implements HandlerInterceptor {
 
 		private final String bestMatchingPattern;
 
+		private final @Nullable PathPattern bestMatchingPathPattern;
+
 		private final String pathWithinMapping;
 
 		public PathExposingHandlerInterceptor(String bestMatchingPattern, String pathWithinMapping) {
 			this.bestMatchingPattern = bestMatchingPattern;
+			this.bestMatchingPathPattern = null;
+			this.pathWithinMapping = pathWithinMapping;
+		}
+
+		public PathExposingHandlerInterceptor(PathPattern bestMatchingPattern, String pathWithinMapping) {
+			this.bestMatchingPattern = bestMatchingPattern.getPatternString();
+			this.bestMatchingPathPattern = bestMatchingPattern;
 			this.pathWithinMapping = pathWithinMapping;
 		}
 
 		@Override
 		public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-			exposePathWithinMapping(this.bestMatchingPattern, this.pathWithinMapping, request);
+			if (this.bestMatchingPathPattern != null) {
+				exposePathWithinMapping(this.bestMatchingPathPattern, this.pathWithinMapping, request);
+			}
+			else {
+				exposePathWithinMapping(this.bestMatchingPattern, this.pathWithinMapping, request);
+			}
 			request.setAttribute(BEST_MATCHING_HANDLER_ATTRIBUTE, handler);
 			request.setAttribute(INTROSPECT_TYPE_LEVEL_MAPPING, supportsTypeLevelMappings());
 			return true;

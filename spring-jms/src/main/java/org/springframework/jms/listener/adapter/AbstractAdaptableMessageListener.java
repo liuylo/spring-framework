@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,7 +39,7 @@ import org.springframework.jms.support.converter.MessagingMessageConverter;
 import org.springframework.jms.support.converter.SimpleMessageConverter;
 import org.springframework.jms.support.converter.SmartMessageConverter;
 import org.springframework.jms.support.destination.DestinationResolver;
-import org.springframework.jms.support.destination.DynamicDestinationResolver;
+import org.springframework.jms.support.destination.SimpleDestinationResolver;
 import org.springframework.messaging.MessageHeaders;
 import org.springframework.util.Assert;
 
@@ -61,7 +61,7 @@ public abstract class AbstractAdaptableMessageListener
 
 	private @Nullable Object defaultResponseDestination;
 
-	private DestinationResolver destinationResolver = new DynamicDestinationResolver();
+	private DestinationResolver destinationResolver = new SimpleDestinationResolver();
 
 	private @Nullable MessageConverter messageConverter = new SimpleMessageConverter();
 
@@ -113,9 +113,9 @@ public abstract class AbstractAdaptableMessageListener
 	/**
 	 * Set the DestinationResolver that should be used to resolve response
 	 * destination names for this adapter.
-	 * <p>The default resolver is a DynamicDestinationResolver. Specify a
+	 * <p>The default resolver is a SimpleDestinationResolver. Specify a
 	 * JndiDestinationResolver for resolving destination names as JNDI locations.
-	 * @see org.springframework.jms.support.destination.DynamicDestinationResolver
+	 * @see org.springframework.jms.support.destination.SimpleDestinationResolver
 	 * @see org.springframework.jms.support.destination.JndiDestinationResolver
 	 */
 	public void setDestinationResolver(DestinationResolver destinationResolver) {
@@ -235,10 +235,10 @@ public abstract class AbstractAdaptableMessageListener
 	 * Extract the message body from the given JMS message.
 	 * @param message the JMS {@code Message}
 	 * @return the content of the message, to be passed into the listener method
-	 * as an argument
+	 * as an argument, or {@code null} if the message has no body
 	 * @throws MessageConversionException if the message could not be extracted
 	 */
-	protected Object extractMessage(Message message) {
+	protected @Nullable Object extractMessage(Message message) {
 		try {
 			MessageConverter converter = getMessageConverter();
 			if (converter != null) {
@@ -462,7 +462,7 @@ public abstract class AbstractAdaptableMessageListener
 		}
 
 		@Override
-		protected Object extractPayload(Message message) throws JMSException {
+		protected @Nullable Object extractPayload(Message message) throws JMSException {
 			Object payload = extractMessage(message);
 			if (message instanceof BytesMessage bytesMessage) {
 				try {
@@ -531,6 +531,10 @@ public abstract class AbstractAdaptableMessageListener
 				Object payload = extractPayload(this.message);
 				if (payload instanceof org.springframework.messaging.Message springMessage) {
 					return springMessage.getPayload();
+				}
+				if (payload == null) {
+					throw new MessageConversionException(
+							"Cannot convert JMS message with no body to a Message with a payload: " + this.message);
 				}
 				return payload;
 			}

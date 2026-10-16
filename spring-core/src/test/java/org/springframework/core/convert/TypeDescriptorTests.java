@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -967,7 +967,7 @@ class TypeDescriptorTests {
 	}
 
 
-	public class IntegerType implements GenericType<Integer> {
+	public static class IntegerType implements GenericType<Integer> {
 
 		@Override
 		public Integer getProperty() {
@@ -989,7 +989,7 @@ class TypeDescriptorTests {
 	}
 
 
-	public class NumberType implements GenericType<Number> {
+	public static class NumberType implements GenericType<Number> {
 
 		@Override
 		public Integer getProperty() {

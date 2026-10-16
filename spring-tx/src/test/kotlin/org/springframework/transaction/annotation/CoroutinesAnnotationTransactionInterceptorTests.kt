@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,14 +42,12 @@ class CoroutinesAnnotationTransactionInterceptorTests {
 	private val source = AnnotationTransactionAttributeSource()
 
 	@Test
-	fun suspendingNoValueSuccess() {
+	suspend fun suspendingNoValueSuccess() {
 		val proxyFactory = ProxyFactory()
 		proxyFactory.setTarget(TestWithCoroutines())
 		proxyFactory.addAdvice(TransactionInterceptor(rtm, source))
 		val proxy = proxyFactory.proxy as TestWithCoroutines
-		runBlocking {
-			proxy.suspendingNoValueSuccess()
-		}
+		proxy.suspendingNoValueSuccess()
 		assertReactiveGetTransactionAndCommitCount(1)
 	}
 
@@ -68,14 +66,12 @@ class CoroutinesAnnotationTransactionInterceptorTests {
 	}
 
 	@Test
-	fun suspendingValueSuccess() {
+	suspend fun suspendingValueSuccess() {
 		val proxyFactory = ProxyFactory()
 		proxyFactory.setTarget(TestWithCoroutines())
 		proxyFactory.addAdvice(TransactionInterceptor(rtm, source))
 		val proxy = proxyFactory.proxy as TestWithCoroutines
-		runBlocking {
-			assertThat(proxy.suspendingValueSuccess()).isEqualTo("foo")
-		}
+		assertThat(proxy.suspendingValueSuccess()).isEqualTo("foo")
 		assertReactiveGetTransactionAndCommitCount(1)
 	}
 
@@ -94,39 +90,33 @@ class CoroutinesAnnotationTransactionInterceptorTests {
 	}
 
 	@Test
-	fun suspendingFlowSuccess() {
+	suspend fun suspendingFlowSuccess() {
 		val proxyFactory = ProxyFactory()
 		proxyFactory.setTarget(TestWithCoroutines())
 		proxyFactory.addAdvice(TransactionInterceptor(rtm, source))
 		val proxy = proxyFactory.proxy as TestWithCoroutines
-		runBlocking {
-			assertThat(proxy.suspendingFlowSuccess().toList()).containsExactly("foo", "foo")
-		}
+		assertThat(proxy.suspendingFlowSuccess().toList()).containsExactly("foo", "foo")
 		assertReactiveGetTransactionAndCommitCount(1)
 	}
 
 	@Test
-	fun flowSuccess() {
+	suspend fun flowSuccess() {
 		val proxyFactory = ProxyFactory()
 		proxyFactory.setTarget(TestWithCoroutines())
 		proxyFactory.addAdvice(TransactionInterceptor(rtm, source))
 		val proxy = proxyFactory.proxy as TestWithCoroutines
-		runBlocking {
-			assertThat(proxy.flowSuccess().toList()).containsExactly("foo", "foo")
-		}
+		assertThat(proxy.flowSuccess().toList()).containsExactly("foo", "foo")
 		assertReactiveGetTransactionAndCommitCount(1)
 	}
 
 	@Test
-	fun suspendingValueSuccessWithContext() {
+	suspend fun suspendingValueSuccessWithContext() {
 		val proxyFactory = ProxyFactory()
 		proxyFactory.setTarget(TestWithCoroutines())
 		proxyFactory.addAdvice(TransactionInterceptor(rtm, source))
 		val proxy = proxyFactory.proxy as TestWithCoroutines
-		assertThat(runBlocking {
-			withExampleContext("context") {
-				proxy.suspendingValueSuccessWithContext()
-			}
+		assertThat(withExampleContext("context") {
+			proxy.suspendingValueSuccessWithContext()
 		}).isEqualTo("context")
 		assertReactiveGetTransactionAndCommitCount(1)
 	}

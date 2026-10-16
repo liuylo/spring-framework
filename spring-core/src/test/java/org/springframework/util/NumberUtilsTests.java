@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -115,6 +115,16 @@ class NumberUtilsTests {
 		assertIntegerEquals(anInteger);
 		assertLongEquals(aLong);
 		assertThat(NumberUtils.parseNumber("0x" + aReallyBigInt, BigInteger.class)).as("BigInteger did not parse").isEqualTo(new BigInteger(aReallyBigInt, 16));
+	}
+
+	@Test  // gh-37434
+	void parseNumberAsPositiveHex() {
+		assertThat(NumberUtils.parseNumber("+0x7f", Byte.class)).isEqualTo((byte) 127);
+		assertThat(NumberUtils.parseNumber("+0X7fff", Short.class)).isEqualTo((short) 32767);
+		assertThat(NumberUtils.parseNumber("+#2a", Integer.class)).isEqualTo(42);
+		assertThat(NumberUtils.parseNumber("+0x2a", Long.class)).isEqualTo(42L);
+		assertThat(NumberUtils.parseNumber("+0xFEBD4E677898DFEBFFEE44", BigInteger.class))
+				.isEqualTo(new BigInteger("FEBD4E677898DFEBFFEE44", 16));
 	}
 
 	@Test

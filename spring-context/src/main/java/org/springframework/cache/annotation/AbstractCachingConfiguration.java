@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,13 +50,13 @@ public abstract class AbstractCachingConfiguration implements ImportAware {
 
 	protected @Nullable AnnotationAttributes enableCaching;
 
-	protected @Nullable Supplier<CacheManager> cacheManager;
+	protected @Nullable Supplier<@Nullable CacheManager> cacheManager;
 
-	protected @Nullable Supplier<CacheResolver> cacheResolver;
+	protected @Nullable Supplier<@Nullable CacheResolver> cacheResolver;
 
-	protected @Nullable Supplier<KeyGenerator> keyGenerator;
+	protected @Nullable Supplier<@Nullable KeyGenerator> keyGenerator;
 
-	protected @Nullable Supplier<CacheErrorHandler> errorHandler;
+	protected @Nullable Supplier<@Nullable CacheErrorHandler> errorHandler;
 
 
 	@Override
@@ -71,7 +71,7 @@ public abstract class AbstractCachingConfiguration implements ImportAware {
 
 	@Autowired
 	void setConfigurers(ObjectProvider<CachingConfigurer> configurers) {
-		Supplier<CachingConfigurer> configurer = () -> {
+		Supplier<@Nullable CachingConfigurer> configurer = () -> {
 			List<CachingConfigurer> candidates = configurers.stream().toList();
 			if (CollectionUtils.isEmpty(candidates)) {
 				return null;
@@ -100,10 +100,10 @@ public abstract class AbstractCachingConfiguration implements ImportAware {
 
 	protected static class CachingConfigurerSupplier {
 
-		private final Supplier<CachingConfigurer> supplier;
+		private final SingletonSupplier<@Nullable CachingConfigurer> supplier;
 
-		public CachingConfigurerSupplier(Supplier<CachingConfigurer> supplier) {
-			this.supplier = SingletonSupplier.of(supplier);
+		public CachingConfigurerSupplier(Supplier<@Nullable CachingConfigurer> supplier) {
+			this.supplier = SingletonSupplier.ofNullable(supplier);
 		}
 
 		/**
@@ -115,7 +115,7 @@ public abstract class AbstractCachingConfiguration implements ImportAware {
 		 * @param <T> the type of the supplier
 		 * @return another supplier mapped by the specified function
 		 */
-		public <T> @Nullable Supplier<T> adapt(Function<CachingConfigurer, T> provider) {
+		public <T> Supplier<@Nullable T> adapt(Function<CachingConfigurer, @Nullable T> provider) {
 			return () -> {
 				CachingConfigurer cachingConfigurer = this.supplier.get();
 				return (cachingConfigurer != null ? provider.apply(cachingConfigurer) : null);

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package org.springframework.web.servlet.function;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -38,7 +39,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.StringHttpMessageConverter;
-import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.servlet.ModelAndView;
@@ -138,6 +139,7 @@ class DefaultServerResponseBuilderTests {
 	}
 
 	@Test
+	@SuppressWarnings("deprecation")
 	void unprocessableEntity() {
 		ServerResponse response = ServerResponse.unprocessableEntity().build();
 		assertThat(response.statusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
@@ -235,6 +237,23 @@ class DefaultServerResponseBuilderTests {
 	}
 
 	@Test
+	void buildWithContentType() throws Exception {
+		ServerResponse response = ServerResponse.ok()
+				.contentType(new MediaType("text", "plain", StandardCharsets.UTF_8))
+				.build();
+
+		MockHttpServletRequest mockRequest = new MockHttpServletRequest("GET", "https://example.com");
+		MockHttpServletResponse mockResponse = new MockHttpServletResponse();
+
+		ModelAndView mav = response.writeTo(mockRequest, mockResponse, EMPTY_CONTEXT);
+		assertThat(mav).isNull();
+
+		assertThat(mockResponse.getHeader(HttpHeaders.CONTENT_TYPE)).isEqualTo("text/plain;charset=UTF-8");
+		assertThat(mockResponse.getContentType()).isEqualTo("text/plain;charset=UTF-8");
+		assertThat(mockResponse.getCharacterEncoding()).isEqualTo("UTF-8");
+	}
+
+	@Test
 	void notModifiedEtag() throws Exception {
 		String etag = "\"foo\"";
 		ServerResponse response = ServerResponse.ok()
@@ -294,7 +313,7 @@ class DefaultServerResponseBuilderTests {
 
 		MockHttpServletRequest mockRequest = new MockHttpServletRequest("GET", "https://example.com");
 		MockHttpServletResponse mockResponse = new MockHttpServletResponse();
-		ServerResponse.Context context = () -> Collections.singletonList(new MappingJackson2HttpMessageConverter());
+		ServerResponse.Context context = () -> Collections.singletonList(new JacksonJsonHttpMessageConverter());
 
 		ModelAndView mav = response.writeTo(mockRequest, mockResponse, context);
 		assertThat(mav).isNull();

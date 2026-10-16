@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2022 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,13 +34,13 @@ class OverloadedAdviceTests {
 
 	@Test
 	@SuppressWarnings("resource")
-	void testConfigParsingWithMismatchedAdviceMethod() {
+	void configParsingWithMismatchedAdviceMethod() {
 		new ClassPathXmlApplicationContext(getClass().getSimpleName() + ".xml", getClass());
 	}
 
 	@Test
 	@SuppressWarnings("resource")
-	void testExceptionOnConfigParsingWithAmbiguousAdviceMethod() {
+	void exceptionOnConfigParsingWithAmbiguousAdviceMethod() {
 		assertThatExceptionOfType(BeanCreationException.class)
 			.isThrownBy(() -> new ClassPathXmlApplicationContext(getClass().getSimpleName() + "-ambiguous.xml", getClass()))
 			.havingRootCause()

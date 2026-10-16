@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2023 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -198,13 +198,13 @@ public class SpringCacheAnnotationParser implements CacheAnnotationParser, Seria
 	private void validateCacheOperation(AnnotatedElement ae, CacheOperation operation) {
 		if (StringUtils.hasText(operation.getKey()) && StringUtils.hasText(operation.getKeyGenerator())) {
 			throw new IllegalStateException("Invalid cache annotation configuration on '" +
-					ae.toString() + "'. Both 'key' and 'keyGenerator' attributes have been set. " +
+					ae + "'. Both 'key' and 'keyGenerator' attributes have been set. " +
 					"These attributes are mutually exclusive: either set the SpEL expression used to" +
 					"compute the key at runtime or set the name of the KeyGenerator bean to use.");
 		}
 		if (StringUtils.hasText(operation.getCacheManager()) && StringUtils.hasText(operation.getCacheResolver())) {
 			throw new IllegalStateException("Invalid cache annotation configuration on '" +
-					ae.toString() + "'. Both 'cacheManager' and 'cacheResolver' attributes have been set. " +
+					ae + "'. Both 'cacheManager' and 'cacheResolver' attributes have been set. " +
 					"These attributes are mutually exclusive: the cache manager is used to configure a" +
 					"default cache resolver if none is set. If a cache resolver is set, the cache manager" +
 					"won't be used.");

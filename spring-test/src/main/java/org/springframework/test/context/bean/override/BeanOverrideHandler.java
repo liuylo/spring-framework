@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,30 +17,25 @@
 package org.springframework.test.context.bean.override;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
-import java.util.Arrays;
+import java.lang.reflect.Parameter;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.jspecify.annotations.Nullable;
 
-import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.beans.factory.config.DependencyDescriptor;
 import org.springframework.beans.factory.config.SingletonBeanRegistry;
+import org.springframework.core.MethodParameter;
 import org.springframework.core.ResolvableType;
-import org.springframework.core.annotation.MergedAnnotation;
 import org.springframework.core.annotation.MergedAnnotations;
 import org.springframework.core.style.ToStringCreator;
 import org.springframework.util.Assert;
-import org.springframework.util.ReflectionUtils;
-
-import static org.springframework.core.annotation.MergedAnnotations.SearchStrategy.DIRECT;
 
 /**
  * Handler for Bean Override injection points that is responsible for creating
@@ -58,80 +53,194 @@ import static org.springframework.core.annotation.MergedAnnotations.SearchStrate
  *
  * <p>Concrete implementations of {@code BeanOverrideHandler} can store additional
  * metadata to use during override {@linkplain #createOverrideInstance instance
- * creation} &mdash; for example, based on further processing of the annotation
- * or the annotated field.
+ * creation} &mdash; for example, based on further processing of the annotation,
+ * the annotated field, the annotated parameter, or the annotated class.
  *
- * <p><strong>NOTE</strong>: Only <em>singleton</em> beans can be overridden.
- * Any attempt to override a non-singleton bean will result in an exception.
+ * <h3>Singleton Semantics</h3>
+ *
+ * <p>When replacing a non-singleton bean, the non-singleton bean will be replaced
+ * with a singleton bean corresponding to bean override instance created by the
+ * handler, and the corresponding bean definition will be converted to a singleton.
+ * Consequently, if a handler overrides a prototype or custom scoped bean, the
+ * overridden bean will be treated as a singleton.
+ *
+ * <p>When replacing a bean created by a
+ * {@link org.springframework.beans.factory.FactoryBean FactoryBean}, the
+ * {@code FactoryBean} itself will be replaced with a singleton bean corresponding
+ * to the bean override instance created by the handler.
+ *
+ * <p>When wrapping a bean created by a
+ * {@link org.springframework.beans.factory.FactoryBean FactoryBean}, the object
+ * created by the {@code FactoryBean} will be wrapped, not the {@code FactoryBean}
+ * itself.
  *
  * @author Simon Baslé
  * @author Stephane Nicoll
  * @author Sam Brannen
  * @since 6.2
+ * @see BeanOverrideStrategy
  */
 public abstract class BeanOverrideHandler {
 
-	private final Field field;
+	private final @Nullable Field field;
 
-	private final Set<Annotation> fieldAnnotations;
+	private final @Nullable Parameter parameter;
+
+	private final Set<Annotation> qualifierAnnotations;
 
 	private final ResolvableType beanType;
 
 	private final @Nullable String beanName;
 
+	private final String contextName;
+
 	private final BeanOverrideStrategy strategy;
 
 
-	protected BeanOverrideHandler(Field field, ResolvableType beanType, @Nullable String beanName,
+	/**
+	 * Construct a new {@code BeanOverrideHandler} from the supplied values.
+	 * <p>To provide proper support for
+	 * {@link org.springframework.test.context.ContextHierarchy @ContextHierarchy},
+	 * invoke {@link #BeanOverrideHandler(Field, ResolvableType, String, String, BeanOverrideStrategy)}
+	 * instead.
+	 * @param field the {@link Field} annotated with {@link BeanOverride @BeanOverride},
+	 * or {@code null} if {@code @BeanOverride} was declared at the type level
+	 * @param beanType the {@linkplain ResolvableType type} of bean to override
+	 * @param beanName the name of the bean to override, or {@code null} to look
+	 * for a single matching bean by type
+	 * @param strategy the {@link BeanOverrideStrategy} to use
+	 * @deprecated As of Spring Framework 6.2.6, in favor of
+	 * {@link #BeanOverrideHandler(Field, ResolvableType, String, String, BeanOverrideStrategy)}
+	 */
+	@Deprecated(since = "6.2.6", forRemoval = true)
+	protected BeanOverrideHandler(@Nullable Field field, ResolvableType beanType, @Nullable String beanName,
 			BeanOverrideStrategy strategy) {
 
+		this(field, beanType, beanName, "", strategy);
+	}
+
+	/**
+	 * Construct a new {@code BeanOverrideHandler} from the supplied values.
+	 * @param field the {@link Field} annotated with {@link BeanOverride @BeanOverride},
+	 * or {@code null} if {@code @BeanOverride} was declared at the type level
+	 * @param beanType the {@linkplain ResolvableType type} of bean to override
+	 * @param beanName the name of the bean to override, or {@code null} to look
+	 * for a single matching bean by type
+	 * @param contextName the name of the context hierarchy level in which the
+	 * handler should be applied, or an empty string to indicate that the handler
+	 * should be applied to all application contexts within a context hierarchy
+	 * @param strategy the {@link BeanOverrideStrategy} to use
+	 * @since 6.2.6
+	 */
+	protected BeanOverrideHandler(@Nullable Field field, ResolvableType beanType, @Nullable String beanName,
+			String contextName, BeanOverrideStrategy strategy) {
+
+		this(field, null, beanType, beanName, contextName, strategy);
+	}
+
+	/**
+	 * Construct a new {@code BeanOverrideHandler} from the supplied values.
+	 * @param parameter the constructor {@link Parameter} annotated with
+	 * {@link BeanOverride @BeanOverride}
+	 * @param beanType the {@linkplain ResolvableType type} of bean to override
+	 * @param beanName the name of the bean to override, or {@code null} to look
+	 * for a single matching bean by type
+	 * @param contextName the name of the context hierarchy level in which the
+	 * handler should be applied, or an empty string to indicate that the handler
+	 * should be applied to all application contexts within a context hierarchy
+	 * @param strategy the {@link BeanOverrideStrategy} to use
+	 * @since 7.1
+	 */
+	protected BeanOverrideHandler(Parameter parameter, ResolvableType beanType, @Nullable String beanName,
+			String contextName, BeanOverrideStrategy strategy) {
+
+		this(null, parameter, beanType, beanName, contextName, strategy);
+	}
+
+	private BeanOverrideHandler(@Nullable Field field, @Nullable Parameter parameter, ResolvableType beanType,
+			@Nullable String beanName, String contextName, BeanOverrideStrategy strategy) {
+
+		Assert.state(field == null || parameter == null, "The field and parameter cannot both be non-null");
+
 		this.field = field;
-		this.fieldAnnotations = annotationSet(field);
+		this.parameter = parameter;
+		this.qualifierAnnotations = getQualifierAnnotations(field != null ? field : parameter);
 		this.beanType = beanType;
 		this.beanName = beanName;
 		this.strategy = strategy;
+		this.contextName = contextName;
 	}
+
 
 	/**
 	 * Process the given {@code testClass} and build the corresponding
 	 * {@code BeanOverrideHandler} list derived from {@link BeanOverride @BeanOverride}
 	 * fields in the test class and its type hierarchy.
-	 * <p>This method does not search the enclosing class hierarchy.
+	 * <p>This method does not search the enclosing class hierarchy and does not
+	 * search for {@code @BeanOverride} declarations on classes or interfaces.
 	 * @param testClass the test class to process
 	 * @return a list of bean override handlers
-	 * @see org.springframework.test.context.TestContextAnnotationUtils#searchEnclosingClass(Class)
+	 * @see BeanOverrideUtils
+	 * @deprecated As of Spring Framework 7.1, in favor of
+	 * {@link BeanOverrideUtils#findHandlersForFields(Class)}
 	 */
+	@Deprecated(since = "7.1", forRemoval = true)
 	public static List<BeanOverrideHandler> forTestClass(Class<?> testClass) {
-		List<BeanOverrideHandler> handlers = new LinkedList<>();
-		ReflectionUtils.doWithFields(testClass, field -> processField(field, testClass, handlers));
-		return handlers;
-	}
-
-	private static void processField(Field field, Class<?> testClass, List<BeanOverrideHandler> handlers) {
-		AtomicBoolean overrideAnnotationFound = new AtomicBoolean();
-		MergedAnnotations.from(field, DIRECT).stream(BeanOverride.class).forEach(mergedAnnotation -> {
-			Assert.state(!Modifier.isStatic(field.getModifiers()),
-					() -> "@BeanOverride field must not be static: " + field);
-			MergedAnnotation<?> metaSource = mergedAnnotation.getMetaSource();
-			Assert.state(metaSource != null, "@BeanOverride annotation must be meta-present");
-
-			BeanOverride beanOverride = mergedAnnotation.synthesize();
-			BeanOverrideProcessor processor = BeanUtils.instantiateClass(beanOverride.value());
-			Annotation composedAnnotation = metaSource.synthesize();
-
-			Assert.state(overrideAnnotationFound.compareAndSet(false, true),
-					() -> "Multiple @BeanOverride annotations found on field: " + field);
-			BeanOverrideHandler handler = processor.createHandler(composedAnnotation, testClass, field);
-			handlers.add(handler);
-		});
+		return BeanOverrideUtils.findHandlersForFields(testClass);
 	}
 
 
 	/**
-	 * Get the annotated {@link Field}.
+	 * Get the {@link Field} annotated with {@link BeanOverride @BeanOverride},
+	 * or {@code null} if this handler was not created for a field.
 	 */
-	public final Field getField() {
+	public final @Nullable Field getField() {
 		return this.field;
+	}
+
+	/**
+	 * Get the constructor {@link Parameter} annotated with {@link BeanOverride @BeanOverride},
+	 * or {@code null} if this handler was not created for a parameter.
+	 * @since 7.1
+	 */
+	public final @Nullable Parameter getParameter() {
+		return this.parameter;
+	}
+
+	final @Nullable AnnotatedElement fieldOrParameter() {
+		return (this.field != null ? this.field : this.parameter);
+	}
+
+	final @Nullable String fieldOrParameterName() {
+		if (this.field != null) {
+			return this.field.getName();
+		}
+		if (this.parameter != null) {
+			return this.parameter.getName();
+		}
+		return null;
+	}
+
+	final @Nullable String fieldOrParameterDescription() {
+		if (this.field != null) {
+			return "field '%s.%s'".formatted(this.field.getDeclaringClass().getSimpleName(),
+					this.field.getName());
+		}
+		if (this.parameter != null) {
+			return "parameter '%s' in constructor for %s".formatted(this.parameter.getName(),
+					this.parameter.getDeclaringExecutable().getName());
+		}
+		return null;
+	}
+
+	final @Nullable DependencyDescriptor fieldOrParameterDependencyDescriptor() {
+		if (this.field != null) {
+			return new DependencyDescriptor(this.field, true);
+		}
+		if (this.parameter != null) {
+			return new DependencyDescriptor(MethodParameter.forParameter(this.parameter), true);
+		}
+		return null;
 	}
 
 	/**
@@ -147,6 +256,21 @@ public abstract class BeanOverrideHandler {
 	 */
 	public final @Nullable String getBeanName() {
 		return this.beanName;
+	}
+
+	/**
+	 * Get the name of the context hierarchy level in which this handler should
+	 * be applied.
+	 * <p>An empty string indicates that this handler should be applied to all
+	 * application contexts.
+	 * <p>If a context name is configured for this handler, it must match a name
+	 * configured via {@code @ContextConfiguration(name=...)}.
+	 * @since 6.2.6
+	 * @see org.springframework.test.context.ContextHierarchy @ContextHierarchy
+	 * @see org.springframework.test.context.ContextConfiguration#name()
+	 */
+	public final String getContextName() {
+		return this.contextName;
 	}
 
 	/**
@@ -212,7 +336,7 @@ public abstract class BeanOverrideHandler {
 	}
 
 	@Override
-	public boolean equals(Object other) {
+	public boolean equals(@Nullable Object other) {
 		if (other == this) {
 			return true;
 		}
@@ -222,38 +346,60 @@ public abstract class BeanOverrideHandler {
 		BeanOverrideHandler that = (BeanOverrideHandler) other;
 		if (!Objects.equals(this.beanType.getType(), that.beanType.getType()) ||
 				!Objects.equals(this.beanName, that.beanName) ||
+				!Objects.equals(this.contextName, that.contextName) ||
 				!Objects.equals(this.strategy, that.strategy)) {
 			return false;
 		}
+
+		// by-name lookup
 		if (this.beanName != null) {
 			return true;
 		}
 
 		// by-type lookup
-		return (Objects.equals(this.field.getName(), that.field.getName()) &&
-				this.fieldAnnotations.equals(that.fieldAnnotations));
+		return (Objects.equals(fieldOrParameterName(), that.fieldOrParameterName()) &&
+				this.qualifierAnnotations.equals(that.qualifierAnnotations));
 	}
 
 	@Override
 	public int hashCode() {
-		int hash = Objects.hash(getClass(), this.beanType.getType(), this.beanName, this.strategy);
-		return (this.beanName != null ? hash : hash +
-				Objects.hash(this.field.getName(), this.fieldAnnotations));
+		int hash = Objects.hash(getClass(), this.beanType.getType(), this.beanName, this.contextName, this.strategy);
+		return (this.beanName != null ? hash : hash + Objects.hash(fieldOrParameterName(), this.qualifierAnnotations));
 	}
 
 	@Override
 	public String toString() {
 		return new ToStringCreator(this)
 				.append("field", this.field)
+				.append("parameter", this.parameter)
 				.append("beanType", this.beanType)
 				.append("beanName", this.beanName)
+				.append("contextName", this.contextName)
 				.append("strategy", this.strategy)
 				.toString();
 	}
 
-	private static Set<Annotation> annotationSet(Field field) {
-		Annotation[] annotations = field.getAnnotations();
-		return (annotations.length != 0 ? new HashSet<>(Arrays.asList(annotations)) : Collections.emptySet());
+
+	private static Set<Annotation> getQualifierAnnotations(@Nullable AnnotatedElement element) {
+		if (element == null) {
+			return Collections.emptySet();
+		}
+		Annotation[] candidates = element.getDeclaredAnnotations();
+		if (candidates.length == 0) {
+			return Collections.emptySet();
+		}
+		Set<Annotation> annotations = new HashSet<>(candidates.length - 1);
+		for (Annotation candidate : candidates) {
+			// Assume all non-BeanOverride annotations are "qualifiers".
+			if (!isBeanOverrideAnnotation(candidate.annotationType())) {
+				annotations.add(candidate);
+			}
+		}
+		return annotations;
+	}
+
+	private static boolean isBeanOverrideAnnotation(Class<? extends Annotation> type) {
+		return MergedAnnotations.from(type).isPresent(BeanOverride.class);
 	}
 
 }

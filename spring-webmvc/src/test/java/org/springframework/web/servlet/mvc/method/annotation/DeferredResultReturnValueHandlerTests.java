@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -63,7 +63,7 @@ class DeferredResultReturnValueHandlerTests {
 
 
 	@Test
-	public void supportsReturnType() throws Exception {
+	void supportsReturnType() throws Exception {
 		assertThat(this.handler.supportsReturnType(
 				on(TestController.class).resolveReturnType(DeferredResult.class, String.class))).isTrue();
 

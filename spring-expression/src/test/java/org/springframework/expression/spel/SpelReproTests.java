@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.jspecify.annotations.Nullable;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import org.springframework.core.MethodParameter;
@@ -83,6 +84,12 @@ import static org.assertj.core.api.InstanceOfAssertFactories.list;
 class SpelReproTests extends AbstractExpressionTests {
 
 	private static final ParserContext DOLLARSQUARE_TEMPLATE_PARSER_CONTEXT = new TemplateParserContext("$[", "]");
+
+
+	@BeforeEach
+	void resetGoo() {
+		Goo.reset();
+	}
 
 
 	@Test
@@ -688,9 +695,9 @@ class SpelReproTests extends AbstractExpressionTests {
 	}
 
 	@Test
-	void testCompiledExpressionForProxy_SPR16191() {
-		SpelExpressionParser expressionParser =
-				new SpelExpressionParser(new SpelParserConfiguration(SpelCompilerMode.IMMEDIATE, null));
+	void compiledExpressionForProxy_SPR16191() {
+		SpelExpressionParser expressionParser = new SpelExpressionParser(
+				SpelParserConfiguration.builder().compilerMode(SpelCompilerMode.IMMEDIATE).build());
 		Expression expression = expressionParser.parseExpression("#target.process(#root)");
 
 		VarargsReceiver receiver = new VarargsReceiver();
@@ -1267,7 +1274,7 @@ class SpelReproTests extends AbstractExpressionTests {
 
 	@Test
 	void SPR10452() {
-		SpelParserConfiguration configuration = new SpelParserConfiguration(false, false);
+		SpelParserConfiguration configuration = SpelParserConfiguration.withDefaults();
 		ExpressionParser parser = new SpelExpressionParser(configuration);
 
 		StandardEvaluationContext context = new StandardEvaluationContext();
@@ -1292,7 +1299,7 @@ class SpelReproTests extends AbstractExpressionTests {
 
 	@Test
 	void SPR9495() {
-		SpelParserConfiguration configuration = new SpelParserConfiguration(false, false);
+		SpelParserConfiguration configuration = SpelParserConfiguration.withDefaults();
 		ExpressionParser parser = new SpelExpressionParser(configuration);
 
 		StandardEvaluationContext context = new StandardEvaluationContext();
@@ -1879,7 +1886,11 @@ class SpelReproTests extends AbstractExpressionTests {
 
 	static class Goo {
 
-		public static Goo instance = new Goo();
+		public static Goo instance;
+
+		static void reset() {
+			instance = new Goo();
+		}
 
 		public String bar = "key";
 

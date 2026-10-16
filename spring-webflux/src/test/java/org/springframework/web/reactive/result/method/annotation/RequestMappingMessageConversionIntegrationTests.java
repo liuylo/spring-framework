@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.codec.json.Jackson2JsonEncoder;
+import org.springframework.http.codec.json.JacksonJsonEncoder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -366,7 +366,7 @@ class RequestMappingMessageConversionIntegrationTests extends AbstractRequestMap
 		startServer(httpServer);
 
 		ResponseEntity<Void> entity = performPost("/person-create/publisher", JSON,
-				asList(new Person("Robert"), new Person("Marie")), null, Void.class);
+				asList(new Person("Robert"), new Person("Marie")), MediaType.ALL, Void.class);
 
 		assertThat(entity.getStatusCode()).isEqualTo(HttpStatus.OK);
 		assertThat(getApplicationContext().getBean(PersonCreateController.class).persons).hasSize(2);
@@ -377,7 +377,7 @@ class RequestMappingMessageConversionIntegrationTests extends AbstractRequestMap
 		startServer(httpServer);
 
 		People people = new People(new Person("Robert"), new Person("Marie"));
-		ResponseEntity<Void> response = performPost("/person-create/publisher", APPLICATION_XML, people, null, Void.class);
+		ResponseEntity<Void> response = performPost("/person-create/publisher", APPLICATION_XML, people, MediaType.ALL, Void.class);
 
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 		assertThat(getApplicationContext().getBean(PersonCreateController.class).persons).hasSize(2);
@@ -388,7 +388,7 @@ class RequestMappingMessageConversionIntegrationTests extends AbstractRequestMap
 		startServer(httpServer);
 
 		ResponseEntity<Void> entity = performPost(
-				"/person-create/mono", JSON, new Person("Robert"), null, Void.class);
+				"/person-create/mono", JSON, new Person("Robert"), MediaType.ALL, Void.class);
 
 		assertThat(entity.getStatusCode()).isEqualTo(HttpStatus.OK);
 		assertThat(getApplicationContext().getBean(PersonCreateController.class).persons).hasSize(1);
@@ -399,7 +399,7 @@ class RequestMappingMessageConversionIntegrationTests extends AbstractRequestMap
 		startServer(httpServer);
 
 		ResponseEntity<Void> entity = performPost(
-				"/person-create/single", JSON, new Person("Robert"), null, Void.class);
+				"/person-create/single", JSON, new Person("Robert"), MediaType.ALL, Void.class);
 
 		assertThat(entity.getStatusCode()).isEqualTo(HttpStatus.OK);
 		assertThat(getApplicationContext().getBean(PersonCreateController.class).persons).hasSize(1);
@@ -410,7 +410,7 @@ class RequestMappingMessageConversionIntegrationTests extends AbstractRequestMap
 		startServer(httpServer);
 
 		ResponseEntity<Void> entity = performPost("/person-create/flux", JSON,
-				asList(new Person("Robert"), new Person("Marie")), null, Void.class);
+				asList(new Person("Robert"), new Person("Marie")), MediaType.ALL, Void.class);
 
 		assertThat(entity.getStatusCode()).isEqualTo(HttpStatus.OK);
 		assertThat(getApplicationContext().getBean(PersonCreateController.class).persons).hasSize(2);
@@ -421,7 +421,7 @@ class RequestMappingMessageConversionIntegrationTests extends AbstractRequestMap
 		startServer(httpServer);
 
 		People people = new People(new Person("Robert"), new Person("Marie"));
-		ResponseEntity<Void> response = performPost("/person-create/flux", APPLICATION_XML, people, null, Void.class);
+		ResponseEntity<Void> response = performPost("/person-create/flux", APPLICATION_XML, people, MediaType.ALL, Void.class);
 
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 		assertThat(getApplicationContext().getBean(PersonCreateController.class).persons).hasSize(2);
@@ -432,7 +432,7 @@ class RequestMappingMessageConversionIntegrationTests extends AbstractRequestMap
 		startServer(httpServer);
 
 		ResponseEntity<Void> entity = performPost("/person-create/observable", JSON,
-				asList(new Person("Robert"), new Person("Marie")), null, Void.class);
+				asList(new Person("Robert"), new Person("Marie")), MediaType.ALL, Void.class);
 
 		assertThat(entity.getStatusCode()).isEqualTo(HttpStatus.OK);
 		assertThat(getApplicationContext().getBean(PersonCreateController.class).persons).hasSize(2);
@@ -443,7 +443,7 @@ class RequestMappingMessageConversionIntegrationTests extends AbstractRequestMap
 		startServer(httpServer);
 
 		People people = new People(new Person("Robert"), new Person("Marie"));
-		ResponseEntity<Void> response = performPost("/person-create/observable", APPLICATION_XML, people, null, Void.class);
+		ResponseEntity<Void> response = performPost("/person-create/observable", APPLICATION_XML, people, MediaType.ALL, Void.class);
 
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 		assertThat(getApplicationContext().getBean(PersonCreateController.class).persons).hasSize(2);
@@ -454,7 +454,7 @@ class RequestMappingMessageConversionIntegrationTests extends AbstractRequestMap
 		startServer(httpServer);
 
 		ResponseEntity<Void> entity = performPost("/person-create/flowable", JSON,
-				asList(new Person("Robert"), new Person("Marie")), null, Void.class);
+				asList(new Person("Robert"), new Person("Marie")), MediaType.ALL, Void.class);
 
 		assertThat(entity.getStatusCode()).isEqualTo(HttpStatus.OK);
 		assertThat(getApplicationContext().getBean(PersonCreateController.class).persons).hasSize(2);
@@ -465,7 +465,7 @@ class RequestMappingMessageConversionIntegrationTests extends AbstractRequestMap
 		startServer(httpServer);
 
 		People people = new People(new Person("Robert"), new Person("Marie"));
-		ResponseEntity<Void> response = performPost("/person-create/flowable", APPLICATION_XML, people, null, Void.class);
+		ResponseEntity<Void> response = performPost("/person-create/flowable", APPLICATION_XML, people, MediaType.ALL, Void.class);
 
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
 		assertThat(getApplicationContext().getBean(PersonCreateController.class).persons).hasSize(2);
@@ -474,7 +474,7 @@ class RequestMappingMessageConversionIntegrationTests extends AbstractRequestMap
 	@ParameterizedHttpServerTest // gh-23791
 	void personCreateViaDefaultMethodWithGenerics(HttpServer httpServer) throws Exception {
 		startServer(httpServer);
-		ResponseEntity<String> entity = performPost("/23791", JSON, new Person("Robert"), null, String.class);
+		ResponseEntity<String> entity = performPost("/23791", JSON, new Person("Robert"), MediaType.ALL, String.class);
 
 		assertThat(entity.getStatusCode()).isEqualTo(HttpStatus.OK);
 		assertThat(entity.getBody()).isEqualTo("Person");
@@ -497,7 +497,7 @@ class RequestMappingMessageConversionIntegrationTests extends AbstractRequestMap
 		@GetMapping("/publisher")
 		@SuppressWarnings("deprecation")
 		Publisher<ByteBuffer> getPublisher() {
-			Jackson2JsonEncoder encoder = new Jackson2JsonEncoder();
+			JacksonJsonEncoder encoder = new JacksonJsonEncoder();
 			return encoder.encode(Mono.just(new Person("Robert")), DefaultDataBufferFactory.sharedInstance,
 					ResolvableType.forClass(Person.class), JSON, Collections.emptyMap()).map(DataBuffer::toByteBuffer);
 		}

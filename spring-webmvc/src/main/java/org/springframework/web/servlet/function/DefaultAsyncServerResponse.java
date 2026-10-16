@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ import org.springframework.web.servlet.ModelAndView;
  */
 final class DefaultAsyncServerResponse extends ErrorHandlingServerResponse implements AsyncServerResponse {
 
-	static final boolean reactiveStreamsPresent = ClassUtils.isPresent(
+	static final boolean REACTIVE_STREAMS_PRESENT = ClassUtils.isPresent(
 			"org.reactivestreams.Publisher", DefaultAsyncServerResponse.class.getClassLoader());
 
 	private final CompletableFuture<ServerResponse> futureResponse;
@@ -66,7 +66,9 @@ final class DefaultAsyncServerResponse extends ErrorHandlingServerResponse imple
 	@Override
 	public ServerResponse block() {
 		try {
-			if (this.timeout != null) {
+			// Consistent with DeferredResult and the Servlet AsyncContext,
+			// a timeout of zero or less specifies an infinite timeout.
+			if (this.timeout != null && this.timeout.toMillis() > 0) {
 				return this.futureResponse.get(this.timeout.toMillis(), TimeUnit.MILLISECONDS);
 			}
 			else {
@@ -115,8 +117,13 @@ final class DefaultAsyncServerResponse extends ErrorHandlingServerResponse imple
 			throws ServletException, IOException {
 
 		WebAsyncManager asyncManager = WebAsyncUtils.getAsyncManager(request);
-		AsyncWebRequest asyncWebRequest = WebAsyncUtils.createAsyncWebRequest(request, response);
-		asyncManager.setAsyncWebRequest(asyncWebRequest);
+		AsyncWebRequest asyncWebRequest = asyncManager.getAsyncWebRequest();
+		// defensive check as asyncWebRequest should not be null,
+		// should have been set already in HandlerFunctionAdapter#getWebAsyncManager
+		if (asyncWebRequest == null) {
+			asyncWebRequest = WebAsyncUtils.createAsyncWebRequest(request, response);
+			asyncManager.setAsyncWebRequest(asyncWebRequest);
+		}
 		try {
 			asyncManager.startDeferredResultProcessing(deferredResult);
 		}

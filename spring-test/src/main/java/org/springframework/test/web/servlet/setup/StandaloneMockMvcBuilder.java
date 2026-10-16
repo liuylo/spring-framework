@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,6 +42,7 @@ import org.springframework.util.PropertyPlaceholderHelper;
 import org.springframework.util.PropertyPlaceholderHelper.PlaceholderResolver;
 import org.springframework.util.StringValueResolver;
 import org.springframework.validation.Validator;
+import org.springframework.web.accept.ApiVersionStrategy;
 import org.springframework.web.accept.ContentNegotiationManager;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.context.support.WebApplicationObjectSupport;
@@ -107,6 +108,8 @@ public class StandaloneMockMvcBuilder extends AbstractMockMvcBuilder<StandaloneM
 	private @Nullable ContentNegotiationManager contentNegotiationManager;
 
 	private @Nullable FormattingConversionService conversionService;
+
+	private @Nullable ApiVersionStrategy versionStrategy;
 
 	private @Nullable List<HandlerExceptionResolver> handlerExceptionResolvers;
 
@@ -190,6 +193,15 @@ public class StandaloneMockMvcBuilder extends AbstractMockMvcBuilder<StandaloneM
 	}
 
 	/**
+	 * Set the {@link ApiVersionStrategy} to use when mapping requests.
+	 * @since 7.0
+	 */
+	public StandaloneMockMvcBuilder setApiVersionStrategy(@Nullable ApiVersionStrategy versionStrategy) {
+		this.versionStrategy = versionStrategy;
+		return this;
+	}
+
+	/**
 	 * Add interceptors mapped to all incoming requests.
 	 */
 	public StandaloneMockMvcBuilder addInterceptors(HandlerInterceptor... interceptors) {
@@ -219,8 +231,11 @@ public class StandaloneMockMvcBuilder extends AbstractMockMvcBuilder<StandaloneM
 
 	/**
 	 * Specify the timeout value for async execution. In Spring MVC Test, this
-	 * value is used to determine how to long to wait for async execution to
+	 * value is used to determine how long to wait for async execution to
 	 * complete so that a test can verify the results synchronously.
+	 * <p>As defined by the Servlet API, a timeout of zero or less specifies
+	 * no timeout, in which case Spring MVC Test waits indefinitely for async
+	 * execution to complete.
 	 * @param timeout the timeout value in milliseconds
 	 */
 	public StandaloneMockMvcBuilder setAsyncRequestTimeout(long timeout) {
@@ -395,8 +410,6 @@ public class StandaloneMockMvcBuilder extends AbstractMockMvcBuilder<StandaloneM
 
 		wac.addBeans(initViewResolvers(wac));
 		wac.addBean(DispatcherServlet.LOCALE_RESOLVER_BEAN_NAME, this.localeResolver);
-		wac.addBean(DispatcherServlet.THEME_RESOLVER_BEAN_NAME,
-				new org.springframework.web.servlet.theme.FixedThemeResolver());
 		wac.addBean(DispatcherServlet.REQUEST_TO_VIEW_NAME_TRANSLATOR_BEAN_NAME,
 				new DefaultRequestToViewNameTranslator());
 
@@ -451,12 +464,16 @@ public class StandaloneMockMvcBuilder extends AbstractMockMvcBuilder<StandaloneM
 			else if (patternParser != null) {
 				handlerMapping.setPatternParser(patternParser);
 			}
+			if (versionStrategy != null) {
+				handlerMapping.setApiVersionStrategy(versionStrategy);
+			}
 			handlerMapping.setOrder(0);
 			handlerMapping.setInterceptors(getInterceptors(mvcConversionService, mvcResourceUrlProvider));
 			return handlerMapping;
 		}
 
 		@Override
+		@SuppressWarnings("removal")
 		protected void configureMessageConverters(List<HttpMessageConverter<?>> converters) {
 			converters.addAll(messageConverters);
 		}

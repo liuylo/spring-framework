@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,10 +57,9 @@ import org.springframework.web.testfixture.http.server.reactive.bootstrap.JettyC
 import org.springframework.web.testfixture.http.server.reactive.bootstrap.JettyHttpServer;
 import org.springframework.web.testfixture.http.server.reactive.bootstrap.ReactorHttpServer;
 import org.springframework.web.testfixture.http.server.reactive.bootstrap.TomcatHttpServer;
-import org.springframework.web.testfixture.http.server.reactive.bootstrap.UndertowHttpServer;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.junit.jupiter.api.Named.named;
 import static org.springframework.http.MediaType.TEXT_EVENT_STREAM;
 
@@ -77,7 +76,6 @@ class SseIntegrationTests extends AbstractHttpHandlerIntegrationTests {
 
 	private void startServer(HttpServer httpServer, ClientHttpConnector connector) throws Exception {
 		super.startServer(httpServer);
-
 		this.webClient = WebClient
 				.builder()
 				.clientConnector(connector)
@@ -128,7 +126,7 @@ class SseIntegrationTests extends AbstractHttpHandlerIntegrationTests {
 
 	@ParameterizedSseTest
 	void sseAsEvent(HttpServer httpServer, ClientHttpConnector connector) throws Exception {
-		assumeTrue(httpServer instanceof JettyHttpServer || httpServer instanceof JettyCoreHttpServer);
+		assumeThat(httpServer).isInstanceOfAny(JettyHttpServer.class, JettyCoreHttpServer.class);
 
 		startServer(httpServer, connector);
 
@@ -147,7 +145,6 @@ class SseIntegrationTests extends AbstractHttpHandlerIntegrationTests {
 
 		Flux<ServerSentEvent<Person>> result = this.webClient.get()
 				.uri("/event")
-				.accept(TEXT_EVENT_STREAM)
 				.retrieve()
 				.bodyToFlux(new ParameterizedTypeReference<>() {});
 
@@ -177,7 +174,7 @@ class SseIntegrationTests extends AbstractHttpHandlerIntegrationTests {
 	@ParameterizedSseTest // SPR-16494
 	@Disabled // https://github.com/reactor/reactor-netty/issues/283
 	void serverDetectsClientDisconnect(HttpServer httpServer, ClientHttpConnector connector) throws Exception {
-		assumeTrue(httpServer instanceof ReactorHttpServer);
+		assumeThat(httpServer).isInstanceOf(ReactorHttpServer.class);
 
 		startServer(httpServer, connector);
 
@@ -314,10 +311,7 @@ class SseIntegrationTests extends AbstractHttpHandlerIntegrationTests {
 				args(new ReactorHttpServer(), new HttpComponentsClientHttpConnector()),
 				args(new TomcatHttpServer(), new ReactorClientHttpConnector()),
 				args(new TomcatHttpServer(), new JettyClientHttpConnector()),
-				args(new TomcatHttpServer(), new HttpComponentsClientHttpConnector()),
-				args(new UndertowHttpServer(), new ReactorClientHttpConnector()),
-				args(new UndertowHttpServer(), new JettyClientHttpConnector()),
-				args(new UndertowHttpServer(), new HttpComponentsClientHttpConnector())
+				args(new TomcatHttpServer(), new HttpComponentsClientHttpConnector())
 		);
 	}
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,10 +17,12 @@
 package org.springframework.test.context;
 
 import java.lang.annotation.Annotation;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import org.jspecify.annotations.Nullable;
 
@@ -29,7 +31,6 @@ import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.core.annotation.MergedAnnotation;
 import org.springframework.core.annotation.MergedAnnotationCollectors;
-import org.springframework.core.annotation.MergedAnnotationPredicates;
 import org.springframework.core.annotation.MergedAnnotations;
 import org.springframework.core.annotation.MergedAnnotations.SearchStrategy;
 import org.springframework.core.annotation.RepeatableContainers;
@@ -44,19 +45,20 @@ import org.springframework.util.ObjectUtils;
 
 /**
  * {@code TestContextAnnotationUtils} is a collection of utility methods that
- * complements the standard support already available in {@link AnnotationUtils}
- * and {@link AnnotatedElementUtils}, while transparently honoring
- * {@link NestedTestConfiguration @NestedTestConfiguration} semantics.
+ * complements the standard support already available in {@link MergedAnnotations},
+ * {@link AnnotationUtils}, and {@link AnnotatedElementUtils}, while transparently
+ * honoring {@link NestedTestConfiguration @NestedTestConfiguration} semantics.
  *
  * <p>Mainly for internal use within the <em>Spring TestContext Framework</em>
  * but also supported for third-party integrations with the TestContext framework.
  *
- * <p>Whereas {@code AnnotationUtils} and {@code AnnotatedElementUtils} provide
- * utilities for <em>getting</em> or <em>finding</em> annotations,
- * {@code TestContextAnnotationUtils} goes a step further by providing support
- * for determining the <em>root class</em> on which an annotation is declared,
- * either directly or indirectly via a <em>composed annotation</em>. This
- * additional information is encapsulated in an {@link AnnotationDescriptor}.
+ * <p>Whereas {@code MergedAnnotations}, {@code AnnotationUtils} and
+ * {@code AnnotatedElementUtils} provide utilities for <em>getting</em> or
+ * <em>finding</em> annotations, {@code TestContextAnnotationUtils} goes a step
+ * further by providing support for determining the <em>root class</em> on which
+ * an annotation is declared, either directly or indirectly via a
+ * <em>composed annotation</em>. This additional information is encapsulated in
+ * an {@link AnnotationDescriptor}.
  *
  * <p>The additional information provided by an {@code AnnotationDescriptor} is
  * required by the <em>Spring TestContext Framework</em> in order to be able to
@@ -68,7 +70,11 @@ import org.springframework.util.ObjectUtils;
  * example, {@link ContextConfiguration#inheritLocations}.
  *
  * @author Sam Brannen
- * @since 5.3, though originally since 4.0 as {@code org.springframework.test.util.MetaAnnotationUtils}
+ * @since 5.3
+ * @see MergedAnnotations
+ * @see MergedAnnotations.Search
+ * @see MergedAnnotations.Search#withEnclosingClasses(Predicate)
+ * @see #searchEnclosingClass(Class)
  * @see AnnotationUtils
  * @see AnnotatedElementUtils
  * @see AnnotationDescriptor
@@ -214,7 +220,7 @@ public abstract class TestContextAnnotationUtils {
 	 * @see #findAnnotationDescriptorForTypes(Class, Class...)
 	 */
 	public static <T extends Annotation> @Nullable AnnotationDescriptor<T> findAnnotationDescriptor(
-			Class<?> clazz, Class<T> annotationType) {
+			@Nullable Class<?> clazz, Class<T> annotationType) {
 
 		Assert.notNull(annotationType, "Annotation type must not be null");
 		return findAnnotationDescriptor(clazz, annotationType, TestContextAnnotationUtils::searchEnclosingClass,
@@ -566,14 +572,22 @@ public abstract class TestContextAnnotationUtils {
 		 * that are present or meta-present on the {@linkplain #getRootDeclaringClass()
 		 * root declaring class} of this descriptor or on any interfaces that the
 		 * root declaring class implements.
+		 * <p>Annotations are returned in the order they are discovered: annotations
+		 * on the root declaring class appear first, followed by annotations on
+		 * implemented interfaces in the order they are declared in the
+		 * {@code implements} clause.
 		 * @return the set of all merged, synthesized {@code Annotations} found,
 		 * or an empty set if none were found
 		 */
 		public Set<T> findAllLocalMergedAnnotations() {
-			SearchStrategy searchStrategy = SearchStrategy.TYPE_HIERARCHY;
-			return MergedAnnotations.from(getRootDeclaringClass(), searchStrategy, RepeatableContainers.none())
-					.stream(getAnnotationType())
-					.filter(MergedAnnotationPredicates.firstRunOf(MergedAnnotation::getAggregateIndex))
+			Class<T> annotationType = getAnnotationType();
+			Stream<MergedAnnotation<T>> classAnnotations =
+					MergedAnnotations.from(this.rootDeclaringClass, SearchStrategy.DIRECT, RepeatableContainers.none())
+							.stream(annotationType);
+			Stream<MergedAnnotation<T>> interfaceAnnotations = Arrays.stream(this.rootDeclaringClass.getInterfaces())
+					.flatMap(ifc -> MergedAnnotations.from(ifc, SearchStrategy.TYPE_HIERARCHY, RepeatableContainers.none())
+							.stream(annotationType));
+			return Stream.concat(classAnnotations, interfaceAnnotations)
 					.collect(MergedAnnotationCollectors.toAnnotationSet());
 		}
 

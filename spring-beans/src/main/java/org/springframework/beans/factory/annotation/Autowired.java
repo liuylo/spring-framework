@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -62,9 +62,9 @@ import java.lang.annotation.Target;
  *
  * <h3>Multiple Arguments and 'required' Semantics</h3>
  * <p>In the case of a multi-arg constructor or method, the {@link #required} attribute
- * is applicable to all arguments. Individual parameters may be declared as Java-8 style
- * {@link java.util.Optional} as well as {@code @Nullable} or a not-null parameter
- * type in Kotlin, overriding the base 'required' semantics.
+ * is applicable to all arguments. Individual parameters may be declared as
+ * {@link java.util.Optional}, {@code @Nullable}, or a not-null parameter type in
+ * Kotlin, overriding the base 'required' semantics.
  *
  * <h3>Autowiring Arrays, Collections, and Maps</h3>
  * <p>In case of an array, {@link java.util.Collection}, or {@link java.util.Map}

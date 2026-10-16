@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2024 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
@@ -123,13 +124,13 @@ public class ResolvableType implements Serializable {
 
 	private @Nullable Class<?> resolved;
 
-	private volatile @Nullable ResolvableType superType;
+	private transient volatile @Nullable ResolvableType superType;
 
-	private volatile ResolvableType @Nullable [] interfaces;
+	private transient volatile ResolvableType @Nullable [] interfaces;
 
-	private volatile ResolvableType @Nullable [] generics;
+	private transient volatile ResolvableType @Nullable [] generics;
 
-	private volatile @Nullable Boolean unresolvableGenerics;
+	private transient volatile @Nullable Boolean unresolvableGenerics;
 
 
 	/**
@@ -320,9 +321,6 @@ public class ResolvableType implements Serializable {
 					other.getComponentType(), true, matchedBefore, upUntilUnresolvable));
 		}
 
-		// We're checking nested generic variables now...
-		boolean exactMatch = (strict && matchedBefore != null);
-
 		// Deal with wildcard bounds
 		WildcardBounds ourBounds = WildcardBounds.get(this);
 		WildcardBounds otherBounds = WildcardBounds.get(other);
@@ -336,8 +334,9 @@ public class ResolvableType implements Serializable {
 			else if (upUntilUnresolvable) {
 				return otherBounds.isAssignableFrom(this, matchedBefore);
 			}
-			else if (!exactMatch) {
-				return otherBounds.isAssignableTo(this, matchedBefore);
+			else if (!strict) {
+				return (matchedBefore != null ? otherBounds.equalsType(this, matchedBefore) :
+						otherBounds.isAssignableTo(this, matchedBefore));
 			}
 			else {
 				return false;
@@ -350,6 +349,7 @@ public class ResolvableType implements Serializable {
 		}
 
 		// Main assignability check about to follow
+		boolean exactMatch = (strict && matchedBefore != null);
 		boolean checkGenerics = true;
 		Class<?> ourResolved = null;
 		if (this.type instanceof TypeVariable<?> variable) {
@@ -401,8 +401,9 @@ public class ResolvableType implements Serializable {
 				}
 				matchedBefore.put(this.type, other.type);
 				for (int i = 0; i < ourGenerics.length; i++) {
-					if (!ourGenerics[i].isAssignableFrom(otherGenerics[i],
-							!other.hasUnresolvableGenerics(), matchedBefore, upUntilUnresolvable)) {
+					ResolvableType otherGeneric = otherGenerics[i];
+					if (!ourGenerics[i].isAssignableFrom(otherGeneric,
+							!otherGeneric.isUnresolvableTypeVariable(), matchedBefore, upUntilUnresolvable)) {
 						return false;
 					}
 				}
@@ -825,9 +826,9 @@ public class ResolvableType implements Serializable {
 	 * @see #getGenerics()
 	 * @see #resolve()
 	 */
-	public Class<?>[] resolveGenerics() {
+	public @Nullable Class<?>[] resolveGenerics() {
 		ResolvableType[] generics = getGenerics();
-		Class<?>[] resolvedGenerics = new Class<?>[generics.length];
+		@Nullable Class<?>[] resolvedGenerics = new Class<?>[generics.length];
 		for (int i = 0; i < generics.length; i++) {
 			resolvedGenerics[i] = generics[i].resolve();
 		}
@@ -941,16 +942,10 @@ public class ResolvableType implements Serializable {
 		return NONE;
 	}
 
-	private @Nullable Type resolveBounds(Type[] bounds) {
-		if (bounds.length == 0 || bounds[0] == Object.class) {
-			return null;
-		}
-		return bounds[0];
-	}
-
 	private @Nullable ResolvableType resolveVariable(TypeVariable<?> variable) {
+		TypeVariable<?> variableToCompare = SerializableTypeWrapper.unwrap(variable);
 		if (this.type instanceof TypeVariable) {
-			return resolveType().resolveVariable(variable);
+			return resolveType().resolveVariable(variableToCompare);
 		}
 		if (this.type instanceof ParameterizedType parameterizedType) {
 			Class<?> resolved = resolve();
@@ -958,25 +953,31 @@ public class ResolvableType implements Serializable {
 				return null;
 			}
 			TypeVariable<?>[] variables = resolved.getTypeParameters();
+			Type[] typeArguments = parameterizedType.getActualTypeArguments();
 			for (int i = 0; i < variables.length; i++) {
-				if (ObjectUtils.nullSafeEquals(variables[i].getName(), variable.getName())) {
-					Type actualType = parameterizedType.getActualTypeArguments()[i];
-					return forType(actualType, this.variableResolver);
+				if (ObjectUtils.nullSafeEquals(variables[i], variableToCompare)) {
+					return forType(typeArguments[i], this.variableResolver);
 				}
 			}
 			Type ownerType = parameterizedType.getOwnerType();
 			if (ownerType != null) {
-				return forType(ownerType, this.variableResolver).resolveVariable(variable);
+				return forType(ownerType, this.variableResolver).resolveVariable(variableToCompare);
+			}
+			// Fallback: comparison by variable name, independent of generic declaration context.
+			for (int i = 0; i < variables.length; i++) {
+				if (ObjectUtils.nullSafeEquals(variables[i].getName(), variableToCompare.getName())) {
+					return forType(typeArguments[i], this.variableResolver);
+				}
 			}
 		}
 		if (this.type instanceof WildcardType) {
-			ResolvableType resolved = resolveType().resolveVariable(variable);
+			ResolvableType resolved = resolveType().resolveVariable(variableToCompare);
 			if (resolved != null) {
 				return resolved;
 			}
 		}
 		if (this.variableResolver != null) {
-			return this.variableResolver.resolveVariable(variable);
+			return this.variableResolver.resolveVariable(variableToCompare);
 		}
 		return null;
 	}
@@ -1159,7 +1160,6 @@ public class ResolvableType implements Serializable {
 	 * @see #forClassWithGenerics(Class, ResolvableType...)
 	 */
 	public static ResolvableType forClassWithGenerics(Class<?> clazz, Class<?>... generics) {
-		Assert.notNull(clazz, "Class must not be null");
 		Assert.notNull(generics, "Generics array must not be null");
 		ResolvableType[] resolvableGenerics = new ResolvableType[generics.length];
 		for (int i = 0; i < generics.length; i++) {
@@ -1289,6 +1289,18 @@ public class ResolvableType implements Serializable {
 	}
 
 	/**
+	 * Return a {@code ResolvableType} for the specified {@link Parameter}.
+	 * <p>This is a convenience factory method for scenarios where a {@code Parameter}
+	 * descriptor is already available.
+	 * @param parameter the source parameter
+	 * @return a {@code ResolvableType} for the specified parameter
+	 * @since 7.1
+	 */
+	public static ResolvableType forParameter(Parameter parameter) {
+		return forMethodParameter(MethodParameter.forParameter(parameter));
+	}
+
+	/**
 	 * Return a {@code ResolvableType} for the specified {@link Constructor} parameter.
 	 * @param constructor the source constructor (must not be {@code null})
 	 * @param parameterIndex the parameter index
@@ -1296,7 +1308,6 @@ public class ResolvableType implements Serializable {
 	 * @see #forConstructorParameter(Constructor, int, Class)
 	 */
 	public static ResolvableType forConstructorParameter(Constructor<?> constructor, int parameterIndex) {
-		Assert.notNull(constructor, "Constructor must not be null");
 		return forMethodParameter(new MethodParameter(constructor, parameterIndex));
 	}
 
@@ -1314,7 +1325,6 @@ public class ResolvableType implements Serializable {
 	public static ResolvableType forConstructorParameter(Constructor<?> constructor, int parameterIndex,
 			Class<?> implementationClass) {
 
-		Assert.notNull(constructor, "Constructor must not be null");
 		MethodParameter methodParameter = new MethodParameter(constructor, parameterIndex, implementationClass);
 		return forMethodParameter(methodParameter);
 	}
@@ -1326,7 +1336,6 @@ public class ResolvableType implements Serializable {
 	 * @see #forMethodReturnType(Method, Class)
 	 */
 	public static ResolvableType forMethodReturnType(Method method) {
-		Assert.notNull(method, "Method must not be null");
 		return forMethodParameter(new MethodParameter(method, -1));
 	}
 
@@ -1340,7 +1349,6 @@ public class ResolvableType implements Serializable {
 	 * @see #forMethodReturnType(Method)
 	 */
 	public static ResolvableType forMethodReturnType(Method method, Class<?> implementationClass) {
-		Assert.notNull(method, "Method must not be null");
 		MethodParameter methodParameter = new MethodParameter(method, -1, implementationClass);
 		return forMethodParameter(methodParameter);
 	}
@@ -1354,7 +1362,6 @@ public class ResolvableType implements Serializable {
 	 * @see #forMethodParameter(MethodParameter)
 	 */
 	public static ResolvableType forMethodParameter(Method method, int parameterIndex) {
-		Assert.notNull(method, "Method must not be null");
 		return forMethodParameter(new MethodParameter(method, parameterIndex));
 	}
 
@@ -1370,7 +1377,6 @@ public class ResolvableType implements Serializable {
 	 * @see #forMethodParameter(MethodParameter)
 	 */
 	public static ResolvableType forMethodParameter(Method method, int parameterIndex, Class<?> implementationClass) {
-		Assert.notNull(method, "Method must not be null");
 		MethodParameter methodParameter = new MethodParameter(method, parameterIndex, implementationClass);
 		return forMethodParameter(methodParameter);
 	}
@@ -1449,6 +1455,23 @@ public class ResolvableType implements Serializable {
 	}
 
 	/**
+	 * Return a {@code ResolvableType} for the bounds of the specified {@link TypeVariable}.
+	 * @param typeVariable the type variable
+	 * @return a {@code ResolvableType} for the specified bounds
+	 * @since 6.2.3
+	 */
+	static ResolvableType forVariableBounds(TypeVariable<?> typeVariable) {
+		return forType(resolveBounds(typeVariable.getBounds()));
+	}
+
+	private static @Nullable Type resolveBounds(Type[] bounds) {
+		if (bounds.length == 0 || bounds[0] == Object.class) {
+			return null;
+		}
+		return bounds[0];
+	}
+
+	/**
 	 * Return a {@code ResolvableType} for the specified {@link Type}.
 	 * <p>Note: The resulting {@code ResolvableType} instance may not be {@link Serializable}.
 	 * @param type the source type (potentially {@code null})
@@ -1475,7 +1498,6 @@ public class ResolvableType implements Serializable {
 		}
 		return forType(type, variableResolver);
 	}
-
 
 	/**
 	 * Return a {@code ResolvableType} for the specified {@link ParameterizedTypeReference}.
@@ -1523,9 +1545,6 @@ public class ResolvableType implements Serializable {
 		if (type instanceof Class) {
 			return new ResolvableType(type, null, typeProvider, variableResolver);
 		}
-
-		// Purge empty entries on access since we don't have a clean-up thread or the like.
-		cache.purgeUnreferencedEntries();
 
 		// Check the cache - we may have a ResolvableType which has been resolved before...
 		ResolvableType resultType = new ResolvableType(type, typeProvider, variableResolver);
@@ -1604,8 +1623,7 @@ public class ResolvableType implements Serializable {
 		public @Nullable ResolvableType resolveVariable(TypeVariable<?> variable) {
 			TypeVariable<?> variableToCompare = SerializableTypeWrapper.unwrap(variable);
 			for (int i = 0; i < this.variables.length; i++) {
-				TypeVariable<?> resolvedVariable = SerializableTypeWrapper.unwrap(this.variables[i]);
-				if (ObjectUtils.nullSafeEquals(resolvedVariable, variableToCompare)) {
+				if (ObjectUtils.nullSafeEquals(this.variables[i], variableToCompare)) {
 					return this.generics[i];
 				}
 			}
@@ -1710,8 +1728,16 @@ public class ResolvableType implements Serializable {
 		 * @return {@code true} if these bounds are assignable from all types
 		 */
 		public boolean isAssignableFrom(ResolvableType[] types, @Nullable Map<Type, Type> matchedBefore) {
-			for (ResolvableType type : types) {
-				if (!isAssignableFrom(type, matchedBefore)) {
+			for (ResolvableType bound : this.bounds) {
+				boolean matched = false;
+				for (ResolvableType type : types) {
+					if (this.kind == Kind.UPPER ? bound.isAssignableFrom(type, false, matchedBefore, false) :
+							type.isAssignableFrom(bound, false, matchedBefore, false)) {
+						matched = true;
+						break;
+					}
+				}
+				if (!matched) {
 					return false;
 				}
 			}
@@ -1752,6 +1778,23 @@ public class ResolvableType implements Serializable {
 			else {
 				return (type.resolve() == Object.class);
 			}
+		}
+
+		/**
+		 * Return {@code true} if these bounds are equal to the specified type.
+		 * @param type the type to test against
+		 * @return {@code true} if these bounds are equal to the type
+		 * @since 6.2.4
+		 */
+		public boolean equalsType(ResolvableType type, @Nullable Map<Type, Type> matchedBefore) {
+			for (ResolvableType bound : this.bounds) {
+				if (this.kind == Kind.UPPER && bound.hasUnresolvableGenerics() ?
+						!type.isAssignableFrom(bound, true, matchedBefore, false) :
+						!type.equalsType(bound)) {
+					return false;
+				}
+			}
+			return true;
 		}
 
 		/**
